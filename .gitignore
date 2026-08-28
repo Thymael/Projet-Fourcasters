@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Environnement Python
+.venv/
+
+# Logs
+logs/
+*.log
+
+# Données locales volumineuses ou générées
+*.csv
+*.parquet
+!fourcasters/seeds/referentiel_communes.csv
+
+# Variables / secrets
+.env
+.env.*
+profiles.yml
+
+# dbt
+fourcasters/target/
+fourcasters/dbt_packages/
+fourcasters/logs/
+
+# Clés GCP - ne jamais versionner
+*.json
+*.pem
+*.key
+gha-creds-*.json
+cle_bigquery.json
+service_account.json
+*service-account*.json
+
+# Fichiers système
+.DS_Store
+Thumbs.db
