@@ -2,6 +2,7 @@ version: 2
 
 sources:
 
+  # Table historique utilisée par les modèles dbt existants.
   - name: openmeteo_raw
     description: "Données météorologiques nettoyées stockées dans BigQuery."
 
@@ -15,3 +16,40 @@ sources:
           Historique météorologique journalier Open-Meteo.
           Les colonnes géographiques dupliquées de la source initiale
           ont été fusionnées avant leur utilisation dans dbt.
+
+  # Table temporaire chargée par le script Python.
+  - name: openmeteo_landing
+    description: "Données d'une nouvelle journée en attente de fusion."
+
+    database: "fourcasters-openmeteo-loick"
+    schema: "openmeteo_landing"
+
+    tables:
+
+      - name: meteo_actualisation
+        description: >
+          Table temporaire contenant les 360 communes d'une seule journée.
+          Elle est remplacée à chaque nouvelle actualisation.
+
+        columns:
+
+          - name: time
+            description: "Date de la journée météo."
+            data_tests:
+              - not_null
+
+          - name: nom_poi
+            description: "Nom de la commune."
+            data_tests:
+              - not_null
+
+          - name: numero_departement
+            description: "Numéro du département."
+            data_tests:
+              - not_null
+
+          - name: row_hash
+            description: "Identifiant unique d'une date et d'une commune."
+            data_tests:
+              - not_null
+              - unique
