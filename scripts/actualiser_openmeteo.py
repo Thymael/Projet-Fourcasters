@@ -1,21 +1,22 @@
 """Récupère une journée météo pour les 360 communes de Fourcasters."""
 
 import hashlib  # Pour créer le row_hash.
-import subprocess  # Pour lancer les commandes dbt depuis Python.
+import os  # Pour détecter GitHub Actions.
 import time  # Pour utiliser time.sleep().
 from datetime import date, datetime, timedelta, timezone  # Pour les dates et insere_a.
 from pathlib import Path  # Pour les chemins de dossiers.
+from zoneinfo import ZoneInfo  # Pour utiliser l’heure de Paris.
 
 import pandas as pd  # Bah, pour Pandas ! xD
 import requests  # Pour interroger l'API Open-Meteo.
 from google.cloud import bigquery, storage  # Pour envoyer les données sur Google Cloud.
-from google.oauth2 import service_account  # Pour utiliser les droits de la clé locale.
 
 # ============================================================
 # 1. PARAMÈTRES
 # ============================================================
 
-dossier_projet = Path(r"C:\dev\Projet_Fourcasters")
+# Racine du dépôt, quel que soit l’ordinateur ou le runner GitHub utilisé.
+dossier_projet = Path(__file__).resolve().parents[1]
 fichier_communes = dossier_projet / "fourcasters" / "seeds" / "referentiel_communes.csv"
 dossier_sortie = dossier_projet / "data" / "actualisation"
 
@@ -27,6 +28,13 @@ fichier_cle_gcp = "C:/dev/cle_bigquery.json"
 nom_bucket = "fourcasters-openmeteo-loick-data"
 dossier_gcs = "landing/actualisation"
 table_landing = f"{projet_gcp}.openmeteo_landing.meteo_actualisation"
+table_historique = f"{projet_gcp}.openmeteo_raw.meteo_journaliere"
+
+# En local, on continue d'utiliser la clé GCP déjà présente sur le PC.
+# Sur GitHub Actions, google-github-actions/auth fournit automatiquement
+# GOOGLE_APPLICATION_CREDENTIALS.
+if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = fichier_cle_gcp
 
 # ============================================================
 # 2. VARIABLES MÉTÉO
@@ -87,19 +95,36 @@ else:
 date_minimum = date(2026, 8, 1)
 
 # la date choisie doit être au plus tard à J-6.
-date_maximum = date.today() - timedelta(days=6)
+aujourdhui_paris = datetime.now(ZoneInfo("Europe/Paris")).date()
+date_maximum = aujourdhui_paris - timedelta(days=6)
 
-date_a_recuperer = input(
-    f"📅 - Date à récupérer "
-    f"(entre {date_minimum} et {date_maximum}) : ").strip()
-
-try:
-    date_demandee = datetime.strptime(
-        date_a_recuperer,
-        "%Y-%m-%d").date()
-except ValueError as erreur:
+if date_maximum < date_minimum:
     raise ValueError(
-        "❌ - La date doit être écrite au format AAAA-MM-JJ.") from erreur
+        "❌ - Aucune nouvelle journée n'est encore disponible.\n"
+        f"📅 - Première date autorisée : {date_minimum}")
+
+# La date est choisie automatiquement à partir de la dernière journée
+# déjà présente dans l'historique BigQuery.
+client_date = bigquery.Client(project=projet_gcp)
+
+requete_date = f"""
+    SELECT MAX(DATE(time)) AS derniere_date
+    FROM `{table_historique}`
+"""
+
+resultat_date = list(client_date.query(requete_date).result())
+derniere_date_bigquery = resultat_date[0].derniere_date
+
+if derniere_date_bigquery is None:
+    date_demandee = date_minimum
+else:
+    date_demandee = derniere_date_bigquery + timedelta(days=1)
+
+date_a_recuperer = date_demandee.isoformat()
+
+print(
+    f"🤖 - Date déterminée automatiquement : "
+    f"{date_a_recuperer}")
 
 # Empêche de récupérer une date déjà présente dans l'historique.
 if date_demandee < date_minimum:
@@ -273,14 +298,23 @@ print(f"📦 - Parquet créé        : {fichier_parquet}")
 if nombre_echecs > 0:
     print("🔁 - Relance la même date : seules les communes absentes seront réessayées.")
 
+# En cas de collecte incomplète, le script doit réellement échouer.
+# GitHub Actions empêchera alors l'étape suivante de se lancer.
+if nombre_reussites != len(df_communes):
+    raise RuntimeError(
+        f"❌ - Envoi impossible : "
+        f"{nombre_reussites} communes récupérées "
+        f"sur {len(df_communes)} attendues.")
+
 # ============================================================
 # 9. ENVOI DU PARQUET DANS CLOUD STORAGE
 # ============================================================
 
 def envoyer_parquet_gcs(fichier_parquet):
-    # Connexion à Google Cloud avec la clé locale.
-    cle = service_account.Credentials.from_service_account_file(fichier_cle_gcp)
-    client = storage.Client(project=projet_gcp, credentials=cle)
+    # Connexion à Google Cloud.
+    # En local, GOOGLE_APPLICATION_CREDENTIALS pointe vers la clé locale.
+    # Sur GitHub Actions, les identifiants sont fournis automatiquement.
+    client = storage.Client(project=projet_gcp)
 
     # Préparation de l'emplacement du fichier dans le bucket.
     bucket = client.bucket(nom_bucket)
@@ -302,9 +336,8 @@ def envoyer_parquet_gcs(fichier_parquet):
 def charger_parquet_bigquery(adresse_gcs, lignes_attendues):
     """Charge le Parquet dans la table temporaire et contrôle ses lignes."""
 
-    # Connexion à BigQuery avec la même clé que pour Cloud Storage.
-    cle = service_account.Credentials.from_service_account_file(fichier_cle_gcp)
-    client = bigquery.Client(project=projet_gcp, credentials=cle)
+    # Connexion à BigQuery avec les mêmes identifiants que pour Cloud Storage.
+    client = bigquery.Client(project=projet_gcp)
 
     # La table temporaire est remplacée à chaque nouvelle journée.
     # La table historique openmeteo_raw.meteo_journaliere n'est pas modifiée ici.
@@ -340,56 +373,11 @@ def charger_parquet_bigquery(adresse_gcs, lignes_attendues):
 # 11. CONTRÔLES, FUSION ET MODÈLES DBT
 # ============================================================
 
-def lancer_dbt():
-    """Contrôle, fusionne puis reconstruit les modèles météo."""
-
-    dossier_dbt = dossier_projet / "fourcasters"
-
-    print("\n====================================")
-    print("🧪  CONTRÔLES ET FUSION DBT  🧪")
-    print("====================================")
-
-    try:
-        # Vérifie les 360 lignes temporaires avant de toucher à l'historique.
-        print("🔎 - Contrôle de la table temporaire...")
-        subprocess.run([
-            "uv", "run", "dbt", "test",
-            "--project-dir", str(dossier_dbt),
-            "--select", "source:openmeteo_landing.meteo_actualisation"],
-            cwd=dossier_projet,
-            check=True)
-
-        # Ajoute seulement les row_hash absents de la table historique.
-        print("\n🧲 - Fusion avec l'historique...")
-        subprocess.run([
-            "uv", "run", "dbt", "run-operation", "fusionner_actualisation",
-            "--project-dir", str(dossier_dbt)],
-            cwd=dossier_projet,
-            check=True)
-
-        # Recalcule le staging et tous les modèles qui en dépendent.
-        print("\n🛠️  - Reconstruction des modèles météo...")
-        subprocess.run([
-            "uv", "run", "dbt", "build",
-            "--project-dir", str(dossier_dbt),
-            "--select", "stg_meteo_journaliere+"],
-            cwd=dossier_projet,
-            check=True)
-
-    except subprocess.CalledProcessError as erreur:
-        raise RuntimeError(
-            "❌ - dbt a rencontré une erreur. Le Parquet et la table "
-            "temporaire sont conservés pour pouvoir reprendre.") from erreur
-
-    print("\n====================================")
-    print("🎉  ACTUALISATION TERMINÉE  🎉")
-    print("====================================")
-    print("✅ - Archive Cloud Storage créée.")
-    print("✅ - Historique BigQuery complété.")
-    print("✅ - Modèles dbt reconstruits et testés.")
+# Les contrôles, la fusion et la reconstruction des modèles dbt
+# sont maintenant exécutés directement par GitHub Actions.
 
 # ============================================================
-# 12. CONFIRMATION DE L'UTILISATEUR
+# 12. ENVOI AUTOMATIQUE
 # ============================================================
 
 # Le fichier ne peut être envoyé que si toutes les communes sont présentes.
@@ -401,16 +389,9 @@ if len(df_actualisation) == len(df_communes):
     print(f"🏙️  - Communes : {len(df_actualisation)}/{len(df_communes)}")
     print(f"📦 - Fichier : {fichier_parquet.name}")
 
-    confirmation = input(
-        "\n❓ - Les contrôles sont-ils corrects ? Envoyer et charger le fichier ? "
-        "(oui/non) : ").strip().lower()
-
-    if confirmation == "oui":
-        adresse_gcs = envoyer_parquet_gcs(fichier_parquet)
-        charger_parquet_bigquery(adresse_gcs, len(df_communes))
-        lancer_dbt()
-    else:
-        print("⏸️  - Envoi et chargement annulés. Le fichier reste disponible localement.")
+    print("\n🤖 - Les 360 communes sont présentes : envoi et chargement automatiques.")
+    adresse_gcs = envoyer_parquet_gcs(fichier_parquet)
+    charger_parquet_bigquery(adresse_gcs, len(df_communes))
 else:
     print(
         f"❌ - Envoi impossible : {len(df_actualisation)} communes récupérées "

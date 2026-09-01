@@ -1,0 +1,51 @@
+name: Pipeline ELT - Actualisation quotidienne Fourcasters
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+      timezone: 'Europe/Paris'
+
+  workflow_dispatch:
+
+jobs:
+  actualisation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: ☁️ Authentification Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      - name: ⚡ Installer uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: 📦 Installer les dépendances
+        working-directory: .
+        run: uv sync --frozen
+
+      - name: 🌤️ 1. Actualiser Open-Meteo
+        working-directory: ./scripts
+        run: uv run python actualiser_openmeteo.py
+
+      - name: 🧪 2. Contrôle de la table temporaire
+        run: >
+          uv run dbt test
+          --project-dir fourcasters
+          --select source:openmeteo_landing.meteo_actualisation
+
+      - name: 🧲 3. Fusion avec l'historique
+        run: >
+          uv run dbt run-operation fusionner_actualisation
+          --project-dir fourcasters
+
+      - name: 🛠️ 4. Reconstruction des modèles météo
+        run: >
+          uv run dbt build
+          --project-dir fourcasters
+          --select stg_meteo_journaliere+
