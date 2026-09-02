@@ -26,25 +26,12 @@ jobs:
           enable-cache: true
 
       - name: 📦 Installer les dépendances
-        working-directory: .
         run: uv sync --frozen
 
       - name: 🌤️ 1. Actualiser Open-Meteo
-        working-directory: ./scripts
-        run: uv run python actualiser_openmeteo.py
+        run: uv run python scripts/actualiser_openmeteo.py
 
-      - name: 🧪 2. Contrôle de la table temporaire
-        run: >
-          uv run dbt test
-          --project-dir fourcasters
-          --select source:openmeteo_landing.meteo_actualisation
-
-      - name: 🧲 3. Fusion avec l'historique
-        run: >
-          uv run dbt run-operation fusionner_actualisation
-          --project-dir fourcasters
-
-      - name: 🛠️ 4. Reconstruction des modèles météo
+      - name: 🛠️ 2. Actualiser les modèles dbt
         run: >
           uv run dbt build
           --project-dir fourcasters

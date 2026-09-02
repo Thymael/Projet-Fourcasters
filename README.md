@@ -1,238 +1,171 @@
-# Fourcasters — Pipeline météo Open-Meteo avec dbt
+# Fourcasters — Analyse météorologique avec Open-Meteo et dbt
 
 ## Présentation
 
-Ce dépôt contient le volet dbt du projet **Fourcasters**, réalisé dans le cadre de la formation Data Analyst de la Wild Code School.
+**Fourcasters** est un projet réalisé dans le cadre de la formation Data Analyst de la Wild Code School.
 
-Fourcasters vise à exploiter des données météorologiques historiques afin d’étudier les conditions climatiques en France et de préparer des analyses liées aux risques tels que les canicules, les précipitations extrêmes et les feux de forêt.
+L’objectif est d’exploiter des données météorologiques historiques en France afin d’étudier les conditions climatiques et de préparer des analyses liées notamment aux fortes chaleurs, aux précipitations et au risque d’incendie.
 
-Cette partie du projet transforme les données Open-Meteo stockées dans BigQuery en un modèle analytique en étoile, exploitable dans Power BI et pour les futurs travaux de Machine Learning.
+Les données sont collectées avec Python, stockées dans BigQuery puis transformées avec dbt pour être exploitées dans Power BI et dans de futurs travaux de Machine Learning.
 
-## Périmètre actuel
+## Données Open-Meteo
 
-- Source principale : API Open-Meteo Historical
-- Modèle météorologique : `ERA5-Seamless`
-- Granularité : une observation quotidienne par point géographique
-- Période historique : du 1er janvier 2000 au 31 juillet 2026
-- Zone étudiée : France métropolitaine
-- Référentiel géographique : 360 points d’observation
-- Entrepôt de données : Google BigQuery
-- Outil de transformation : dbt
+* Source : API Open-Meteo Historical
+* Modèle : `ERA5-Seamless`
+* Granularité : une observation quotidienne par point géographique
+* Historique initial : du 1er janvier 2000 au 31 juillet 2026
+* Actualisation : une journée à la fois
+* Décalage volontaire : J-6 pour attendre la disponibilité des données ERA5
+* Zone étudiée : France métropolitaine
+* Référentiel : 360 points d’observation
 
-## Architecture des données
+## Architecture
 
 ```text
 Open-Meteo Historical API
         │
         ▼
-Collecte et préparation Python
+scripts/actualiser_openmeteo.py
         │
         ▼
-BigQuery — openmeteo_landing
-└── historique_openmeteo
+BigQuery
+openmeteo_raw.meteo_journaliere
         │
         ▼
-BigQuery — openmeteo_raw
-└── meteo_journaliere
+dbt
         │
-        ▼
-dbt — openmeteo_analyse
-├── stg_meteo_journaliere
-├── referentiel_communes
-├── int_meteo_communes
-├── dim_commune
-├── dim_date
-└── fact_meteo
+        ├── staging
+        ├── intermediate
+        └── marts
+                │
+                ▼
+             Power BI
 ```
+
+Le script Python écrit directement dans la table historique BigQuery.
+
+Aucun fichier CSV, Parquet ou table temporaire n’est nécessaire pour l’actualisation quotidienne.
 
 ## Modèle analytique
 
-Le projet produit un modèle en étoile composé de deux dimensions et d’une table de faits.
+Le modèle dbt utilise une architecture en étoile.
 
 ### `dim_commune`
 
-Dimension géographique contenant les 360 communes ou points d’observation :
-
-- code INSEE ;
-- nom de la commune ;
-- département ;
-- région ;
-- latitude et longitude ;
-- type de service administratif ;
-- indicateur de centroïde.
+Dimension contenant les informations géographiques des 360 points d’observation.
 
 ### `dim_date`
 
-Dimension calendaire couvrant toute la période météorologique :
-
-- date ;
-- année ;
-- trimestre ;
-- mois ;
-- semaine ;
-- jour de la semaine ;
-- saison ;
-- indicateur de week-end.
+Dimension calendaire couvrant toute la période météorologique.
 
 ### `fact_meteo`
 
 Table de faits contenant les observations météorologiques quotidiennes :
 
-- températures ;
-- températures ressenties ;
-- humidité ;
-- point de rosée ;
-- précipitations, pluie et neige ;
-- vitesse et direction du vent ;
-- couverture nuageuse ;
-- pression atmosphérique ;
-- ensoleillement ;
-- rayonnement solaire ;
-- évapotranspiration ;
-- déficit de pression de vapeur ;
-- humidité et température du sol.
-
-La table est partitionnée par mois sur la colonne `date` et organisée par `code_insee`.
+* températures et températures ressenties ;
+* humidité et point de rosée ;
+* précipitations, pluie et neige ;
+* vitesse et direction du vent ;
+* couverture nuageuse et pression atmosphérique ;
+* ensoleillement et rayonnement solaire ;
+* évapotranspiration ;
+* déficit de pression de vapeur ;
+* humidité et température du sol.
 
 ## Organisation du projet
 
 ```text
-fourcasters-dbt/
+Projet_Fourcasters/
+├── .github/
+│   └── workflows/
+│       └── pipeline.yml
+├── DOCUMENTATION/
 ├── fourcasters/
-│   ├── analyses/
-│   ├── macros/
 │   ├── models/
-│   │   ├── staging/
-│   │   │   └── openmeteo/
-│   │   ├── intermediate/
-│   │   └── marts/
 │   ├── seeds/
 │   │   └── referentiel_communes.csv
-│   ├── snapshots/
 │   ├── tests/
 │   └── dbt_project.yml
-├── src/
+├── scripts/
+│   └── actualiser_openmeteo.py
 ├── .gitignore
 ├── .python-version
 ├── pyproject.toml
 └── uv.lock
 ```
 
-## Modèles dbt
+## Actualisation quotidienne
 
-### Staging
-
-`stg_meteo_journaliere` :
-
-- lit la table BigQuery `openmeteo_raw.meteo_journaliere` ;
-- harmonise les colonnes géographiques ;
-- normalise les codes de département ;
-- renomme les variables météorologiques ;
-- convertit les colonnes dans les types attendus.
-
-### Intermediate
-
-`int_meteo_communes` :
-
-- joint les observations météorologiques au référentiel des communes ;
-- ajoute le code INSEE, le département et la région ;
-- prépare les données utilisées par les tables analytiques.
-
-### Marts
-
-Les marts contiennent :
-
-- `dim_commune` ;
-- `dim_date` ;
-- `fact_meteo`.
-
-## Qualité des données
-
-Des tests dbt sont définis pour vérifier :
-
-- l’absence de valeurs nulles sur les colonnes essentielles ;
-- l’unicité des identifiants ;
-- l’unicité des codes INSEE ;
-- l’unicité des dates ;
-- l’intégrité des relations entre la table de faits et les dimensions.
-
-Le dernier `dbt build` validé a produit :
-
-- 360 lignes dans `referentiel_communes` ;
-- 360 lignes dans `dim_commune` ;
-- environ 9 700 lignes dans `dim_date` ;
-- environ 3,5 millions de lignes dans `fact_meteo` ;
-- 100 % des tests dbt réussis.
-
-## Prérequis
-
-- Python 3.12 ou une version compatible ;
-- `uv` ;
-- un accès au projet Google Cloud `fourcasters-openmeteo-loick` ;
-- une clé de compte de service BigQuery conservée en dehors du dépôt ;
-- un fichier `profiles.yml` configuré dans le dossier personnel `.dbt`.
-
-Les clés GCP, les identifiants et le fichier `profiles.yml` ne doivent jamais être ajoutés à Git.
-
-## Installation
-
-Depuis le dossier `Projet_Fourcasters` :
+Le script récupère automatiquement la prochaine journée disponible.
 
 ```bash
-uv sync
+uv run python scripts/actualiser_openmeteo.py
 ```
 
-## Vérifier la connexion à BigQuery
+Il :
+
+1. cherche la dernière journée présente dans BigQuery ;
+2. reprend une journée incomplète si nécessaire ;
+3. récupère les communes manquantes auprès d’Open-Meteo ;
+4. écrit directement les nouvelles lignes dans BigQuery ;
+5. évite les doublons grâce à `row_hash`.
+
+## dbt
+
+Tester la connexion :
 
 ```bash
 uv run dbt debug --project-dir fourcasters
 ```
 
-## Construire le pipeline dbt
+Construire les modèles :
 
 ```bash
 uv run dbt build --project-dir fourcasters
 ```
 
-Cette commande :
-
-1. charge le seed des 360 communes ;
-2. construit les modèles de staging ;
-3. construit le modèle intermédiaire ;
-4. construit les dimensions et la table de faits ;
-5. exécute les tests de qualité.
-
-## Générer la documentation dbt
+Construire uniquement la partie météo :
 
 ```bash
-uv run dbt docs generate --project-dir fourcasters
+uv run dbt build --project-dir fourcasters --select stg_meteo_journaliere+
 ```
 
-Puis :
+## Contrôles
 
-```bash
-uv run dbt docs serve --project-dir fourcasters
+Le pipeline vérifie notamment :
+
+* la présence des 360 communes ;
+* l’unicité des lignes avec `row_hash` ;
+* l’absence de valeurs nulles sur les colonnes essentielles ;
+* les relations entre la table de faits et les dimensions.
+
+Les requêtes de contrôle BigQuery sont conservées dans :
+
+```text
+DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql
 ```
 
-## Brouillons
+## Automatisation
 
-Le dossier `brouillons/` contient les scripts conservés pour étude mais qui ne
-font pas encore partie du pipeline validé. Ils ne doivent pas être exécutés sans
-avoir été adaptés et testés.
+Le workflow GitHub Actions :
+
+1. récupère le dépôt ;
+2. s’authentifie auprès de Google Cloud ;
+3. installe les dépendances avec `uv` ;
+4. lance l’actualisation Open-Meteo ;
+5. reconstruit les modèles dbt.
 
 ## Sécurité
 
-Les éléments suivants sont exclus du versionnement :
+Les éléments sensibles ne doivent jamais être ajoutés au dépôt :
 
-- `.venv/` ;
-- `target/` ;
-- `logs/` ;
-- `dbt_packages/` ;
-- `.env` ;
-- `profiles.yml` ;
-- les clés de comptes de service GCP.
+* clés de comptes de service Google Cloud ;
+* fichiers `.env` ;
+* `profiles.yml` ;
+* secrets GitHub Actions.
 
 ## Auteur
 
 **MARTIN Loïck**
+
 Projet de fin de formation Data Analyst — Wild Code School
