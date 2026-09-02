@@ -1,0 +1,29 @@
+## NOTE DE VIGILANCE ÉTHIQUE – FOURCASTERS
+### CONTEXTE
+Fourcasters analyse des données météo pour 360 points en France métropolitaine afin d’étudier les canicules, les fortes pluies et les risques de feux.
+
+### POINTS DE VIGILANCE REPÉRÉS
+#### 1. Représentativité des données
+Les données ne contiennent pas de colonnes sensibles comme l’âge, le sexe ou la situation sociale. Cependant, leur répartition géographique peut créer des biais.
+Les territoires d’outre-mer ne sont pas présents. Il faut aussi vérifier si les zones rurales, urbaines, montagneuses et côtières sont correctement représentées. Un seul point météo peut parfois mal représenter une commune avec plusieurs types de relief ou de climat.
+
+#### 2. Impact possible des analyses
+Les résultats pourraient servir à identifier les territoires les plus exposés et à orienter des moyens humains, matériels ou financiers.
+Si certaines zones sont moins bien représentées, leur niveau de risque pourrait être sous-estimé. Elles pourraient alors recevoir moins d’attention ou moins de ressources, alors que le danger est réel.
+Les résultats doivent donc rester une aide à la décision et ne pas remplacer l’avis des spécialistes ou des services locaux.
+
+#### 3. Données personnelles
+Le projet utilise uniquement des données météo et géographiques. Il ne contient pas de noms, d’adresses personnelles ou d’informations sur des personnes.
+Il faut conserver ce principe et éviter d’ajouter plus tard des données individuelles qui ne seraient pas nécessaires au projet.
+Seul les données relatives aux comptes des utilisateurs seraient comptés comme des données personnelles/sensibles.
+
+### PRÉCAUTIONS PROPOSÉES
+* Vérifier la répartition des 360 points par région, département, type de territoire et niveau de population.
+  **Bénéfice attendu :** repérer les zones absentes ou moins bien représentées.
+* Présenter clairement les limites des données et comparer les résultats avec des sources officielles ou locales.
+  **Bénéfice attendu :** éviter de présenter les résultats comme des certitudes.
+* Garder uniquement les données nécessaires et ne pas ajouter de données personnelles sans besoin précis.
+  **Bénéfice attendu :** respecter le principe de minimisation et limiter les risques pour les personnes.
+
+### CONCLUSION
+Fourcasters ne traite pas directement de données personnelles, mais il faut surveiller les biais géographiques pour produire des analyses plus justes et plus fiables.

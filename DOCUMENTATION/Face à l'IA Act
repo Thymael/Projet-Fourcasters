@@ -1,0 +1,31 @@
+## FACE À L’AI ACT
+### CONTEXTE
+Le modèle de machine learning de Fourcasters n’est pas encore réalisé. Je fais donc l’exercice sur ChatGPT, que j’utilise pour m’aider à comprendre certaines notions, corriger du code et rédiger la documentation du projet.
+ChatGPT n’est pas directement intégré au pipeline et ne prend aucune décision à notre place.
+
+### NIVEAU DE RISQUE ESTIMÉ
+Je classe cet usage dans le niveau de risque limité. ChatGPT génère du contenu, mais il n’est pas utilisé pour prendre une décision importante concernant une personne, un emploi, un droit ou un service public.
+L’AI Act classe notamment les chatbots parmi les systèmes soumis à des règles de transparence, afin que les utilisateurs sachent qu’ils échangent avec une IA. Commission européenne – AI Act
+
+### RÉSULTAT DU TESTEUR
+Dans le testeur de conformité AI Act :
+- utilisation d’un système d’IA en France ;
+- utilisateur du système, sans modification de ChatGPT ;
+- aucune utilisation interdite ou à haut risque ;
+- génération de contenu écrit.
+
+Le testeur ne classe pas cet usage comme interdit ou à haut risque. Il indique principalement deux obligations :
+- avoir un niveau suffisant de compréhension de l’IA ;
+- rendre identifiable le contenu produit ou modifié par une IA lorsqu’il est diffusé.
+Le testeur donne seulement une indication : il est proposé par le Future of Life Institute et n’est pas un outil officiel de l’Union européenne.
+
+### SURPRISE ET PRÉCAUTIONS
+Je pensais surtout devoir vérifier les réponses de ChatGPT. Le testeur montre qu’il faut aussi savoir utiliser l’outil correctement et être transparent sur son utilisation.
+
+Pour le projet, nous devons donc :
+- vérifier les réponses et le code proposés par ChatGPT ;
+- ne pas lui transmettre de données confidentielles ;
+- signaler son utilisation lorsqu’un contenu généré par l’IA est repris dans un document public.
+
+### CONCLUSION
+L’utilisation de ChatGPT dans Fourcasters présente un risque limité, à condition de garder une vérification humaine et d’être transparent sur son utilisation.
