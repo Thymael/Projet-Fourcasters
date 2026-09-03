@@ -111,3 +111,71 @@ models:
               arguments:
                 to: ref('dim_commune')
                 field: code_insee
+
+  # ============================================================
+  # DIMENSION DEPARTEMENT
+  # ============================================================
+
+  - name: dim_departement
+    description: >
+      Dimension géographique contenant les 96 départements
+      de France métropolitaine.
+
+    columns:
+
+      - name: numero_departement
+        description: "Code unique du département."
+        data_tests:
+          - not_null
+          - unique
+
+      - name: departement
+        description: "Nom du département."
+        data_tests:
+          - not_null
+
+      - name: region
+        description: "Région administrative."
+        data_tests:
+          - not_null
+
+  # ============================================================
+  # TABLE DE FAITS DANGER INCENDIE
+  # ============================================================
+
+  - name: fact_danger_incendie
+    description: >
+      Table de faits contenant les niveaux de danger incendie
+      publiés par Météo-France pour chaque département.
+
+    columns:
+
+      - name: id_danger_incendie
+        description: "Identifiant unique d'une publication pour un département."
+        data_tests:
+          - not_null
+          - unique
+
+      - name: reference_time
+        description: "Date et heure de publication Météo-France."
+        data_tests:
+          - not_null
+
+      - name: numero_departement
+        description: "Code du département."
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_departement')
+                field: numero_departement
+
+      - name: niveau_j1
+        description: "Niveau de danger incendie prévu à J1."
+        data_tests:
+          - not_null
+
+      - name: niveau_j2
+        description: "Niveau de danger incendie prévu à J2."
+        data_tests:
+          - not_null

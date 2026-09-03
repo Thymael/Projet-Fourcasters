@@ -20,22 +20,7 @@ models:
         data_tests:
           - not_null
 
-      - name: ville
-        description: "Commune ou point d'observation."
-        data_tests:
-          - not_null
-
-      - name: numero_departement
-        description: "Code du département du point d'observation."
-        data_tests:
-          - not_null
-
-      - name: latitude
-        description: "Latitude du point d'observation."
-        data_tests:
-          - not_null
-
-      - name: longitude
-        description: "Longitude du point d'observation."
+      - name: code_insee
+        description: "Code INSEE utilisé pour rattacher l'observation au référentiel communal."
         data_tests:
           - not_null

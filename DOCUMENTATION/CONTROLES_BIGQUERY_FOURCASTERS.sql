@@ -31,7 +31,7 @@ SELECT
     DATE(time) AS date_observation,
     COUNT(*) AS nombre_lignes,
     COUNT(DISTINCT row_hash) AS nombre_cles_uniques,
-    COUNT(DISTINCT CONCAT(nom_poi, '|', numero_departement)) AS nombre_communes
+    COUNT(DISTINCT code_insee) AS nombre_communes
 FROM `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere`
 GROUP BY date_observation
 HAVING
@@ -51,7 +51,7 @@ SELECT
     row_hash,
     COUNT(*) AS nombre_occurrences,
     MIN(DATE(time)) AS date_observation,
-    ANY_VALUE(nom_poi) AS commune
+    ANY_VALUE(code_insee) AS code_insee
 FROM `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere`
 GROUP BY row_hash
 HAVING COUNT(*) > 1

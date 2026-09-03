@@ -3,62 +3,57 @@
 Fourcasters récupère chaque jour des données météo pour 360 points en France afin d’étudier les canicules, les fortes pluies et les risques de feux.
 
 ### CONSTAT
-Le script récupère 29 variables, notamment la température, l’humidité, la pluie, le vent, l’ensoleillement et l’état du sol.
-Dans le script historique analysé, la collecte va de 2000 au 1er août 2026. Le script quotidien commence également au 1er août 2026 et récupère les données par lots de communes.
+Le script récupère les variables météorologiques nécessaires au projet, notamment la température, l’humidité, la pluie, le vent, l’ensoleillement et l’état du sol.
+L’historique initial couvre la période du 1er janvier 2000 au 31 juillet 2026. L’actualisation quotidienne commence au 1er août 2026 et récupère une nouvelle journée à la fois, avec un retard volontaire de 6 jours pour attendre la disponibilité des données ERA5.
+Le script vérifie BigQuery avant les appels afin de reprendre une journée incomplète et de ne récupérer que les communes absentes.
 Les variables semblent utiles, mais nous n’avons pas encore vérifié lesquelles seront réellement utilisées dans les analyses, le futur modèle ou les visualisations.
 
 ### GASPILLAGES REPÉRÉS
-* Les données du 1er août 2026 risquent d’être récupérées deux fois.
-* Une date déjà présente dans BigQuery peut être téléchargée à nouveau si le suivi local est supprimé ou incomplet.
 * Certaines variables peuvent être collectées et stockées sans être utilisées par la suite.
+* Une actualisation complète relance jusqu’à 360 appels API, même si le volume de données ajouté reste faible.
 
 ### ACTIONS PROPOSÉES
-* Corriger les dates : terminer l’historique au 31 juillet 2026 et commencer l’actualisation au 1er août 2026.
-  **Bénéfice attendu :** éviter les appels API et les doublons inutiles.
 * Vérifier l’utilité des variables pour les canicules, les pluies, les feux, le futur modèle et la dataviz.
   **Bénéfice attendu :** récupérer et stocker uniquement les données nécessaires.
-* Vérifier BigQuery avant chaque appel API pour connaître les dates et les communes déjà présentes.
-  **Bénéfice attendu :** réduire les appels API, les temps d’attente et les doublons.
+* Conserver la vérification de BigQuery avant la collecte afin de reprendre uniquement les communes manquantes d’une journée incomplète.
+  **Bénéfice attendu :** éviter les appels API et les doublons inutiles.
 
 ### CONCLUSION
-La collecte est cohérente, mais les dates et l’utilité des variables doivent être mieux contrôlées.
+La collecte est maintenant incrémentale et évite de redemander les données déjà présentes. Le principal point restant à surveiller est l’utilité réelle de toutes les variables collectées.
 
 ---
 
-## ÉTAPE 2/5 – Au stockage : fichiers et bucket
+## ÉTAPE 2/5 – Au stockage : BigQuery
 ### CONTEXTE
-Après la collecte, Fourcasters crée un fichier CSV, le transforme en Parquet, puis envoie le Parquet dans le bucket avant le chargement dans BigQuery.
+Après la collecte, Fourcasters écrit directement les nouvelles observations dans la table historique BigQuery `openmeteo_raw.meteo_journaliere`.
 
 ### CONSTAT
-Pour 16 jours, le dossier contient 16 fichiers CSV et 16 fichiers Parquet. Les mêmes 5 760 lignes sont donc conservées deux fois en local, pour environ 3,6 Mo.
-Le bucket reçoit aussi un fichier Parquet par jour. Dans les fichiers du projet, je n’ai trouvé aucune règle indiquant combien de temps ces fichiers doivent être conservés.
+Le pipeline quotidien ne crée plus de fichier CSV ou Parquet intermédiaire et ne passe plus par un bucket Cloud Storage ou une table landing.
+La table RAW contient les données météorologiques, le `code_insee`, le `row_hash` et la date d’insertion. Les informations géographiques détaillées sont conservées dans le référentiel communal utilisé par dbt.
 
 ### GASPILLAGES REPÉRÉS
-* Les fichiers CSV et Parquet restent en local après le chargement.
-* Les petits fichiers Parquet s’accumulent dans le bucket.
-* Le ZIP du projet contient aussi `.venv`, `target`, les logs et les caches.
-* Le dossier `.venv` représente à lui seul environ 99 % du ZIP décompressé.
+* Le volume historique continue naturellement d’augmenter avec 360 nouvelles lignes par journée ajoutée.
+* Le ZIP du projet peut devenir inutilement lourd si `.venv`, `target`, les logs ou les caches y sont inclus.
 
 ### ACTIONS PROPOSÉES
-* Supprimer les fichiers locaux après la validation du chargement dans BigQuery et de l’exécution de dbt.
-  **Bénéfice attendu :** garder moins de copies et utiliser moins d’espace sur l’ordinateur.
-* Définir une durée de conservation pour les fichiers du bucket, puis les archiver ou les supprimer.
-  **Bénéfice attendu :** éviter l’accumulation permanente des fichiers.
-* Ne pas inclure `.venv`, `target`, les logs, les caches et les fichiers de données dans le ZIP partagé.
+* Continuer à ne pas créer de copies locales intermédiaires pour l’actualisation quotidienne.
+  **Bénéfice attendu :** limiter les doublons de stockage et simplifier le pipeline.
+* Ne pas inclure `.venv`, `target`, les logs et les caches dans les archives ou dossiers partagés.
   **Bénéfice attendu :** réduire fortement la taille du projet partagé.
 
 ### CONCLUSION
-Le volume actuel reste faible, mais des règles simples éviteront une accumulation inutile avec le temps.
+Le stockage quotidien a été simplifié : une seule copie historique est conservée dans BigQuery, sans accumulation de fichiers intermédiaires locaux ou dans Cloud Storage.
 
 ---
 
 ## ÉTAPE 3/5 – Aux requêtes : BigQuery et dbt
 ### CONTEXTE
-Fourcasters charge chaque nouvelle journée dans BigQuery, puis dbt prépare les tables utilisées pour les analyses et Power BI.
+Fourcasters ajoute chaque nouvelle journée directement dans BigQuery, puis dbt prépare les tables utilisées pour les analyses et Power BI.
 
 ### CONSTAT
-Chaque jour, 360 nouvelles lignes sont chargées dans une table temporaire. Le `MERGE` ajoute uniquement les lignes absentes de l’historique.
-Ensuite, dbt reconstruit les tables de staging, les tables intermédiaires, les dimensions et la table de faits.
+Chaque jour, jusqu’à 360 nouvelles lignes sont ajoutées dans `openmeteo_raw.meteo_journaliere`.
+Le `row_hash`, construit à partir de la date et du code INSEE, permet d’identifier chaque observation de manière unique.
+Ensuite, dbt reconstruit les modèles de staging, le modèle intermédiaire, les dimensions et la table de faits.
 La table de faits contient environ 3,5 millions de lignes. Elle est partitionnée par date et organisée par code INSEE, mais elle est reconstruite entièrement à chaque lancement.
 
 ### GASPILLAGES REPÉRÉS
@@ -75,7 +70,7 @@ La table de faits contient environ 3,5 millions de lignes. Elle est partitionné
   **Bénéfice attendu :** accélérer les requêtes et réduire la quantité de données lues.
 
 ### CONCLUSION
-Le principal gain serait de mettre à jour les tables progressivement au lieu de recalculer tout l’historique.
+Le pipeline d’ingestion est maintenant plus sobre. Le principal gain restant se situe dans dbt, avec la possibilité de mettre à jour les tables progressivement au lieu de recalculer tout l’historique.
 
 ---
 

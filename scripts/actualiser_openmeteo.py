@@ -1,7 +1,6 @@
 """Actualise une journée Open-Meteo directement dans BigQuery."""
 
 import hashlib                                                                                     # Crée un identifiant unique par ligne.
-import os                                                                                          # Gère la clé Google Cloud en local.
 import time                                                                                        # Ajoute une pause entre les appels API.
 from datetime import date, datetime, timedelta, timezone                                           # Gère les dates et heures.
 from pathlib import Path                                                                           # Construit les chemins du projet.
@@ -10,6 +9,7 @@ from zoneinfo import ZoneInfo                                                   
 import pandas as pd                                                                                # Lit le référentiel des communes.
 import requests                                                                                    # Interroge l'API Open-Meteo.
 from google.cloud import bigquery                                                                  # Lit et alimente BigQuery.
+from dotenv import load_dotenv                                                                     # Charge les variables locales du fichier .env.
 
 
 # ============================================================
@@ -21,17 +21,13 @@ FICHIER_COMMUNES = RACINE_PROJET / "fourcasters" / "seeds" / "referentiel_commun
 
 PROJET_GCP = "fourcasters-openmeteo-loick"                                                         # Projet Google Cloud.
 TABLE_METEO = f"{PROJET_GCP}.openmeteo_raw.meteo_journaliere"                                     # Table météo historique.
-CLE_GCP = "C:/dev/cle_bigquery.json"                                                               # Clé utilisée seulement en local.
-
 DATE_DEBUT = date(2026, 8, 1)                                                                      # Première journée après l'historique.
 RETARD_ERA5 = 6                                                                                    # Marge avant disponibilité des données ERA5.
 PAUSE_API = 3                                                                                      # Pause entre deux communes.
 TENTATIVES_API = 3                                                                                 # Nombre maximal d'essais par commune.
 
-if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = CLE_GCP                                         # GitHub utilise sa propre authentification.
-
-client = bigquery.Client(project=PROJET_GCP)                                                       # Ouvre la connexion BigQuery.
+load_dotenv(RACINE_PROJET / ".env")                                                                # Charge la configuration locale.
+client = bigquery.Client()                                                                         # Utilise les identifiants Google disponibles.
 
 
 # ============================================================
@@ -76,9 +72,8 @@ VARIABLES_METEO = [
 # ============================================================
 
 def creer_hash(jour, commune):
-    nom = str(commune["commune"]).strip()                                                          # Nettoie le nom de la commune.
-    departement = str(commune["numero_departement"]).strip()                                       # Garde les numéros comme 01 ou 2A.
-    cle = f"{jour}|{nom}|{departement}"                                                            # Crée une clé stable pour la ligne.
+    code_insee = str(commune["code_insee"]).strip()                                                # Identifie la commune sans ambiguïté.
+    cle = f"{jour}|{code_insee}"                                                                   # Clé unique : date + code INSEE.
     return hashlib.sha256(cle.encode("utf-8")).hexdigest()
 
 
@@ -105,8 +100,7 @@ def trouver_date_a_recuperer(nombre_communes):
     dernier_jour_disponible = aujourdhui - timedelta(days=RETARD_ERA5)
 
     if jour > dernier_jour_disponible:
-        message = f"Aucune nouvelle journée ERA5 disponible. Dernière date possible : {dernier_jour_disponible}"
-        raise ValueError(message)
+        return None                                                                                     # Rien à actualiser aujourd'hui.
 
     return jour
 
@@ -167,25 +161,15 @@ def recuperer_meteo(commune, jour):
 
 
 def creer_ligne(commune, daily, jour):
-    nom = str(commune["commune"]).strip()
-    departement = str(commune["numero_departement"]).strip()
-
     ligne = {
         "time": f"{jour.isoformat()}T00:00:00+00:00",
-        "nom_poi": nom,
-        "numero_departement": departement,
-        "latitude_poi": float(commune["latitude"]),
-        "longitude_poi": float(commune["longitude"]),
-        "ville": nom,
-        "departement": str(commune["departement"]),
-        "latitude": float(commune["latitude"]),
-        "longitude": float(commune["longitude"]),
-        "row_hash": creer_hash(jour, commune),
-        "insere_a": datetime.now(timezone.utc).isoformat(),
+        "code_insee": str(commune["code_insee"]).strip(),                                         # Identifie le point via le référentiel.
+        "row_hash": creer_hash(jour, commune),                                                     # Clé unique date + code INSEE.
+        "insere_a": datetime.now(timezone.utc).isoformat(),                                        # Date d'insertion dans BigQuery.
     }
 
     for variable in VARIABLES_METEO:
-        valeurs = daily.get(variable)                                                              # Une seule valeur est attendue pour la journée.
+        valeurs = daily.get(variable)                                                              # Une valeur par journée.
         ligne[variable] = valeurs[0] if valeurs else None
 
     return ligne
@@ -196,9 +180,16 @@ def creer_ligne(commune, daily, jour):
 # ============================================================
 
 def main():
-    communes = pd.read_csv(FICHIER_COMMUNES, dtype={"numero_departement": "string"})                # Charge les 360 communes.
+    communes = pd.read_csv(
+    FICHIER_COMMUNES,
+    dtype={"numero_departement": "string", "code_insee": "string"},)                                # Préserve les zéros des codes.
     jour = trouver_date_a_recuperer(len(communes))                                                  # Choisit la prochaine journée utile.
-    deja_presents = hashes_existants(jour)                                                          # Permet de reprendre après une coupure.
+
+    if jour is None:
+        print("\n✅ Aucune nouvelle journée ERA5 disponible.")
+        return
+
+    deja_presents = hashes_existants(jour)                                                           # Permet de reprendre après une coupure.
 
     print("\n🌤️  ACTUALISATION OPEN-METEO")
     print(f"📅 Date : {jour}")

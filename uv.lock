@@ -792,6 +792,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pyarrow" },
     { name = "pyogrio" },
+    { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "requests" },
 ]
@@ -809,6 +810,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0.5" },
     { name = "pyarrow", specifier = ">=25.0.1" },
     { name = "pyogrio", specifier = ">=0.13.0" },
+    { name = "python-dotenv" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.34.2" },
 ]
