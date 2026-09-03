@@ -11,7 +11,7 @@ Le projet utilise deux sources principales :
 - **Open-Meteo** pour les données météorologiques historiques ;
 - **Météo-France** pour les niveaux de danger incendie de la Météo des forêts.
 
-Les données sont collectées avec Python, stockées dans BigQuery puis transformées avec dbt pour être exploitées dans Power BI et dans de futurs travaux de Machine Learning.
+Les deux sources sont actualisées par un même script Python, stockées dans BigQuery puis transformées avec dbt pour être exploitées dans Power BI et dans de futurs travaux de Machine Learning.
 
 ## Sources de données
 
@@ -25,6 +25,7 @@ Les données sont collectées avec Python, stockées dans BigQuery puis transfor
 - Décalage volontaire : J-6 pour attendre la disponibilité des données ERA5
 - Zone étudiée : France métropolitaine
 - Référentiel : 360 points d'observation
+- Collecte quotidienne : appels groupés par lots pour limiter le nombre de requêtes API
 
 ### Météo-France
 
@@ -40,28 +41,30 @@ Ces données correspondent à un **niveau de danger incendie prévu** et non à 
 ## Architecture
 
 ```text
-Open-Meteo Historical API             Météo-France
-        │                                  │
-        ▼                                  ▼
-actualiser_openmeteo.py        actualiser_meteofrance_incendie.py
-        │                                  │
-        ▼                                  ▼
-openmeteo_raw                    meteofrance_raw
-meteo_journaliere                 meteo_forets
-        │                                  │
-        └──────────────┬───────────────────┘
-                       ▼
-                      dbt
-                       │
-             ┌─────────┼─────────┐
-             ▼         ▼         ▼
-          staging  intermediate  marts
-                                  │
-                                  ▼
-                               Power BI
+Open-Meteo Historical API        Météo-France
+          │                           │
+          └─────────────┬─────────────┘
+                        ▼
+          scripts/actualiser_fourcasters.py
+                        │
+             ┌──────────┴──────────┐
+             ▼                     ▼
+      openmeteo_raw          meteofrance_raw
+   meteo_journaliere          meteo_forets
+             │                     │
+             └──────────┬──────────┘
+                        ▼
+                       dbt
+                        │
+              ┌─────────┼─────────┐
+              ▼         ▼         ▼
+           staging  intermediate  marts
+                                   │
+                                   ▼
+                                Power BI
 ```
 
-Les scripts Python écrivent directement dans les tables RAW de BigQuery.
+Le script Python écrit directement dans les tables RAW de BigQuery.
 
 Aucun fichier CSV, Parquet ou table temporaire n'est nécessaire pour l'actualisation quotidienne.
 
@@ -126,8 +129,7 @@ Projet_Fourcasters/
 │   ├── tests/
 │   └── dbt_project.yml
 ├── scripts/
-│   ├── actualiser_openmeteo.py
-│   └── actualiser_meteofrance_incendie.py
+│   └── actualiser_fourcasters.py
 ├── .gitignore
 ├── .python-version
 ├── pyproject.toml
@@ -136,27 +138,31 @@ Projet_Fourcasters/
 
 ## Actualisation quotidienne
 
-### Open-Meteo
+Les deux sources sont actualisées avec une seule commande :
 
 ```bash
-uv run python scripts/actualiser_openmeteo.py
+uv run python scripts/actualiser_fourcasters.py
 ```
 
-Le script :
+Le script exécute successivement :
+
+1. l'actualisation Open-Meteo ;
+2. l'actualisation Météo-France.
+
+### Open-Meteo
+
+La partie Open-Meteo :
 
 1. cherche la dernière journée présente dans BigQuery ;
 2. reprend une journée incomplète si nécessaire ;
-3. récupère les communes manquantes auprès d'Open-Meteo ;
-4. écrit directement les nouvelles lignes dans BigQuery ;
-5. évite les doublons grâce à `row_hash`.
+3. retire les communes déjà présentes ;
+4. interroge Open-Meteo par lots de communes ;
+5. écrit les nouvelles lignes dans BigQuery ;
+6. évite les doublons grâce à `row_hash`.
 
 ### Météo-France
 
-```bash
-uv run python scripts/actualiser_meteofrance_incendie.py
-```
-
-Le script :
+La partie Météo-France :
 
 1. récupère la publication courante de la Météo des forêts ;
 2. prépare les données des 96 départements ;
@@ -214,9 +220,8 @@ Le workflow GitHub Actions :
 1. récupère le dépôt ;
 2. s'authentifie auprès de Google Cloud ;
 3. installe les dépendances avec `uv` ;
-4. actualise les données Open-Meteo ;
-5. actualise les données Météo-France ;
-6. reconstruit et teste les modèles dbt.
+4. lance `actualiser_fourcasters.py` pour mettre à jour Open-Meteo et Météo-France ;
+5. reconstruit et teste les modèles dbt.
 
 ## Sécurité
 

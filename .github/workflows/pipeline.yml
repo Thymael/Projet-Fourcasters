@@ -28,13 +28,10 @@ jobs:
       - name: 📦 Installer les dépendances
         run: uv sync --frozen
 
-      - name: 🌤️ 1. Actualiser Open-Meteo
-        run: uv run python scripts/actualiser_openmeteo.py
-
-      - name: 🔥 2. Actualiser Météo-France
+      - name: 🌦️ 1. Actualiser les données météo
         env:
           METEOFRANCE_API_KEY: ${{ secrets.METEOFRANCE_API_KEY }}
-        run: uv run python scripts/actualiser_meteofrance_incendie.py
+        run: uv run python scripts/actualiser_fourcasters.py
 
-      - name: 🛠️ 3. Actualiser les modèles dbt
+      - name: 🛠️ 2. Actualiser les modèles dbt
         run: uv run dbt build --project-dir fourcasters
