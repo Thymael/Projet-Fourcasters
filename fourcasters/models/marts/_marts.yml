@@ -170,12 +170,24 @@ models:
                 to: ref('dim_departement')
                 field: numero_departement
 
-      - name: niveau_j1
-        description: "Niveau de danger incendie prévu à J1."
+      - name: date_prevision
+        description: "Date à laquelle s'applique la prévision de danger incendie."
         data_tests:
           - not_null
 
-      - name: niveau_j2
-        description: "Niveau de danger incendie prévu à J2."
+      - name: echeance
+        description: "Échéance de la prévision : J1 ou J2."
         data_tests:
           - not_null
+          - accepted_values:
+              arguments:
+                values: ['J1', 'J2']
+
+      - name: niveau_danger
+        description: "Niveau de danger incendie prévu par Météo-France."
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+                quote: false
