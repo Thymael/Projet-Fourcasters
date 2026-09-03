@@ -1,0 +1,41 @@
+version: 2
+
+models:
+
+  - name: stg_meteo_forets
+    description: >
+      Données de danger incendie publiées par Météo-France,
+      préparées pour les modèles analytiques.
+
+    columns:
+
+      - name: row_hash
+        description: "Identifiant technique unique d'une publication pour un département."
+        data_tests:
+          - not_null
+          - unique
+
+      - name: reference_time
+        description: "Date et heure de publication Météo-France."
+        data_tests:
+          - not_null
+
+      - name: numero_departement
+        description: "Code du département."
+        data_tests:
+          - not_null
+
+      - name: departement
+        description: "Nom du département."
+        data_tests:
+          - not_null
+
+      - name: niveau_j1
+        description: "Niveau de danger incendie prévu à J1."
+        data_tests:
+          - not_null
+
+      - name: niveau_j2
+        description: "Niveau de danger incendie prévu à J2."
+        data_tests:
+          - not_null

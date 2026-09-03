@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+
+  - name: meteofrance_raw
+    description: "Données brutes issues de l'API Météo des forêts."
+
+    database: "fourcasters-openmeteo-loick"
+    schema: "meteofrance_raw"
+
+    tables:
+
+      - name: meteo_forets
+        description: "Historique des niveaux de danger incendie publiés par Météo-France."
