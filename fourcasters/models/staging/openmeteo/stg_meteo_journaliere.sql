@@ -13,32 +13,8 @@ SELECT
     row_hash,
     insere_a,
 
-    -- Fusion des colonnes géographiques en double
-    COALESCE(
-        NULLIF(TRIM(nom_poi), ''),
-        NULLIF(TRIM(Ville), '')
-    ) AS ville,
-
-    -- Conservation temporaire du numéro de département pour la future jointure avec le référentiel
-    CASE
-        WHEN UPPER(TRIM(numero_departement)) IN ('2A', '2B')
-            THEN UPPER(TRIM(numero_departement))
-
-        ELSE LPAD(
-            COALESCE(
-                CAST(SAFE_CAST(NULLIF(TRIM(numero_departement), '') AS INT64) AS STRING),
-                CAST(SAFE_CAST(Departement AS INT64) AS STRING)),2,'0')
-    END AS numero_departement,
-
-    COALESCE(
-        latitude_poi,
-        Latitude
-    ) AS latitude,
-
-    COALESCE(
-        longitude_poi,
-        Longitude
-    ) AS longitude,
+    -- Identifiant géographique
+    TRIM(code_insee) AS code_insee,
 
     -- Date et code météorologique
     time AS date,

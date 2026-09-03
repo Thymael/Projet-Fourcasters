@@ -30,9 +30,9 @@ SELECT
     c.service,
     c.centroide,
 
-    -- Coordonnées du point météo
-    m.latitude,
-    m.longitude,
+    -- Coordonnées du référentiel
+    c.latitude,
+    c.longitude,
 
     -- Code météo
     m.code_meteo,
@@ -82,6 +82,4 @@ SELECT
 FROM meteo AS m
 
 INNER JOIN communes AS c
-
-    ON LOWER(TRIM(m.ville)) = LOWER(TRIM(c.commune))
-    AND m.numero_departement = c.numero_departement
+    ON m.code_insee = c.code_insee

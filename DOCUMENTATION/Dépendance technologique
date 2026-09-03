@@ -2,21 +2,21 @@
 ### CONTEXTE
 
 Fourcasters utilise plusieurs technologies proposées par des entreprises américaines :
-- Google Cloud pour BigQuery et le bucket Cloud Storage ;
+- Google Cloud pour BigQuery ;
 - GitHub et GitHub Actions, appartenant à Microsoft ;
 - Power BI, également proposé par Microsoft ;
 - ChatGPT, développé par OpenAI ;
 - dbt, développé par l’entreprise américaine dbt Labs, même si dbt Core est open source.
 
 ### RISQUES REPÉRÉS
-Si nous perdions l’accès à Google Cloud, le stockage, les requêtes BigQuery et une partie du pipeline seraient bloqués.
+Si nous perdions l’accès à Google Cloud, le stockage et les requêtes BigQuery ainsi qu’une partie du pipeline seraient bloqués.
 Sans GitHub, nous ne pourrions plus accéder facilement au dépôt distant ni lancer l’actualisation automatique avec GitHub Actions.
 La perte de Power BI empêcherait l’actualisation des tableaux de bord. En revanche, la perte de ChatGPT ralentirait surtout notre travail, sans bloquer le fonctionnement du projet.
 
 ### DEUX IDÉES POUR RÉDUIRE CETTE DÉPENDANCE
-Sauvegarder régulièrement les données dans des formats ouverts comme CSV ou Parquet, ainsi que le code SQL et dbt.
+Sauvegarder ponctuellement les données dans des formats ouverts comme CSV ou Parquet, ainsi que le code SQL et dbt.
 Bénéfice attendu : pouvoir déplacer le projet vers un autre service sans perdre les données.
-Prévoir des solutions alternatives, par exemple PostgreSQL pour la base de données, MinIO pour le stockage et Metabase ou Apache Superset pour la dataviz.
+Prévoir des solutions alternatives, par exemple PostgreSQL pour la base de données et Metabase ou Apache Superset pour la dataviz.
 Bénéfice attendu : éviter que tout le projet dépende d’un seul fournisseur.
 
 ### CONCLUSION
