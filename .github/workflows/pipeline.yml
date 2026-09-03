@@ -33,5 +33,21 @@ jobs:
           METEOFRANCE_API_KEY: ${{ secrets.METEOFRANCE_API_KEY }}
         run: uv run python scripts/actualiser_fourcasters.py
 
-      - name: 🛠️ 2. Actualiser les modèles dbt
+      - name: 🔧 2. Configurer dbt
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml <<'EOF'
+          fourcasters:
+            target: dev
+            outputs:
+              dev:
+                type: bigquery
+                method: oauth
+                project: fourcasters-openmeteo-loick
+                dataset: openmeteo_analyse
+                threads: 4
+                location: US
+          EOF
+
+      - name: 🛠️ 3. Actualiser les modèles dbt
         run: uv run dbt build --project-dir fourcasters
