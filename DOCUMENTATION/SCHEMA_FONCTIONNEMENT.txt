@@ -1,0 +1,136 @@
+                           PROJET FOURCASTERS
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Objectif : analyser la météo et le danger incendie en France métropolitaine│
+└─────────────────────────────────────────────────────────────────────────────┘
+
+         SOURCES EXTERNES
+         ─────────────────────────────────────────────────────────────
+
+         Open-Meteo Historical API
+                    │
+                    │  observations météo journalières
+                    │
+                    ▼
+         Météo-France API - Météo des forêts
+                    │
+                    │  danger incendie J1 / J2
+                    │
+                    ▼
+
+         COLLECTE / INGESTION PYTHON
+         ─────────────────────────────────────────────────────────────
+
+         scripts/actualiser_fourcasters.py
+                    │
+                    │  pilote les 2 flux :
+                    │  - actualise Open-Meteo
+                    │  - actualise Météo-France
+                    │  - gère les doublons via row_hash
+                    │  - reprend une journée incomplète
+                    │
+                    ├───────────────────────────────────────┐
+                    │                                       │
+                    ▼                                       ▼
+
+      fourcasters/seeds/referentiel_communes.csv      .env / secrets GitHub
+      (référentiel des 360 points)                    (clé API Météo-France
+      utilisé côté Open-Meteo                         + credentials GCP)
+
+                    │
+                    ▼
+
+         STOCKAGE BRUT BIGQUERY
+         ─────────────────────────────────────────────────────────────
+
+         openmeteo_raw.meteo_journaliere
+                    │
+                    │  données météo brutes
+                    │
+                    ▼
+
+         meteofrance_raw.meteo_forets
+                    │
+                    │  publications brutes danger incendie
+                    │
+                    ▼
+
+         TRANSFORMATIONS DBT
+         ─────────────────────────────────────────────────────────────
+
+         fourcasters/dbt_project.yml
+                    │
+                    │  organise les modèles :
+                    │  - staging
+                    │  - intermediate
+                    │  - marts
+                    │
+                    ▼
+
+      STAGING
+      ├── models/staging/openmeteo/_openmeteo_sources.yml
+      ├── models/staging/openmeteo/stg_meteo_journaliere.sql
+      ├── models/staging/openmeteo/_stg_openmeteo.yml
+      ├── models/staging/meteofrance/_meteofrance_sources.yml
+      ├── models/staging/meteofrance/stg_meteo_forets.sql
+      └── models/staging/meteofrance/_stg_meteofrance.yml
+                    │
+                    │  nettoie, renomme, typage, contrôles
+                    ▼
+
+      INTERMEDIATE
+      ├── models/intermediate/int_meteo_communes.sql
+      └── models/intermediate/_intermediate.yml
+                    │
+                    │  enrichit la météo avec le référentiel communal
+                    ▼
+
+      MARTS
+      ├── models/marts/dim_commune.sql
+      ├── models/marts/dim_departement.sql
+      ├── models/marts/dim_date.sql
+      ├── models/marts/fact_meteo.sql
+      ├── models/marts/fact_danger_incendie.sql
+      └── models/marts/_marts.yml
+                    │
+                    │  construit le modèle analytique final
+                    ▼
+
+         SCHÉMA ANALYTIQUE BIGQUERY
+         ─────────────────────────────────────────────────────────────
+
+         openmeteo_analyse
+         ├── referentiel_communes
+         ├── stg_meteo_journaliere
+         ├── stg_meteo_forets
+         ├── int_meteo_communes
+         ├── dim_commune
+         ├── dim_departement
+         ├── dim_date
+         ├── fact_meteo
+         └── fact_danger_incendie
+
+                    │
+                    │  données prêtes pour analyse
+                    ▼
+
+         EXPLOITATION
+         ─────────────────────────────────────────────────────────────
+
+         Power BI / EDA / futures analyses ML
+
+                    │
+                    ▼
+
+         QUALITÉ / AUTOMATISATION / DOC
+         ─────────────────────────────────────────────────────────────
+
+         .github/workflows/pipeline.yml
+              ├── lance le script Python
+              ├── configure dbt dans GitHub Actions
+              └── exécute dbt build
+
+         DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql
+              └── requêtes de contrôle manuelles dans BigQuery
+
+         README.md
+              └── vision globale du projet
