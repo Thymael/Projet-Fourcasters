@@ -67,7 +67,7 @@ VARIABLES_METEO = [
 ]
 
 
-def trouver_date_a_recuperer(nombre_communes: int) -> str:
+def trouver_date_a_recuperer(nombre_communes: int) -> str | None:
     """Renvoie la journée suivante ou reprend une journée incomplète."""
 
     date_maximum = (
@@ -96,10 +96,11 @@ def trouver_date_a_recuperer(nombre_communes: int) -> str:
         date_demandee = resultats[0].jour + timedelta(days=1)
 
     if date_demandee > date_maximum:
-        raise ValueError(
-            "Aucune nouvelle journée ERA5 n'est disponible. "
+        print(
+            "Aucune nouvelle journée Open-Meteo disponible. "
             f"Dernière date autorisée : {date_maximum}."
         )
+        return None
 
     return date_demandee.isoformat()
 
@@ -332,6 +333,9 @@ def main():
         dtype={"numero_departement": "string", "code_insee": "string"},
     )
     date_a_recuperer = trouver_date_a_recuperer(len(communes))
+    if date_a_recuperer is None:
+        print("Open-Meteo est déjà à jour.")
+        return
     fichier_csv = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.csv"
     fichier_parquet = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.parquet"
 
