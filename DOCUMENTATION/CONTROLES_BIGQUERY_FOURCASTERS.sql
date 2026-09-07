@@ -304,3 +304,24 @@ GROUP BY
     incendie.date_prevision,
     incendie.echeance
 ORDER BY incendie.echeance;
+
+
+-- ============================================================
+-- CTRL_15_METEOFRANCE_COUVERTURE_PAR_ANNEE
+-- Resume les archives et verifie le volume de chaque annee.
+-- Attendu : publications_completes = TRUE pour chaque annee.
+-- ============================================================
+
+SELECT
+    EXTRACT(YEAR FROM reference_time) AS annee,
+    COUNT(*) AS nombre_lignes,
+    COUNT(DISTINCT reference_time) AS nombre_publications,
+    COUNT(DISTINCT reference_time) * 96 AS nombre_lignes_attendu,
+    COUNT(DISTINCT dep_code) AS nombre_departements,
+    COUNT(*) = COUNT(DISTINCT reference_time) * 96
+        AS publications_completes,
+    MIN(DATE(reference_time)) AS premiere_date,
+    MAX(DATE(reference_time)) AS derniere_date
+FROM `fourcasters-openmeteo-loick.meteofrance_raw.meteo_forets`
+GROUP BY annee
+ORDER BY annee;

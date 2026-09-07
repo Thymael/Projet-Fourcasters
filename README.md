@@ -12,7 +12,8 @@ Machine Learning.
 | Source | Contenu | Granularité |
 |---|---|---|
 | Open-Meteo Historical (`ERA5-Seamless`) | Observations météo quotidiennes | 360 points × jour |
-| Météo-France « Météo des forêts » | Danger incendie prévu à J1 et J2 | 96 départements × publication |
+| API Météo-France « Météo des forêts » | Danger incendie courant prévu à J1 et J2 | 96 départements × publication |
+| Archives Météo-France | Historique du danger incendie depuis 2024 | 96 départements × publication |
 
 Les niveaux Météo-France représentent un **danger prévu** et non des départs de
 feu observés.
@@ -21,8 +22,8 @@ feu observés.
 
 ```mermaid
 flowchart TD
-    A[API Open-Meteo] --> C[Scripts Python]
-    B[API Météo-France] --> C
+    A[Open-Meteo] --> C[Scripts Python]
+    B[API et archives Météo-France] --> C
     C --> D[Cloud Storage]
     D --> E[BigQuery landing et raw]
     E --> F[Modèles dbt]
@@ -95,10 +96,37 @@ Le pipeline contrôle notamment la volumétrie attendue, les doublons, les
 colonnes obligatoires et les clés `row_hash`. Une collecte incomplète bloque le
 chargement suivant.
 
+## Importer l'historique incendie
+
+Météo-France fournit des fichiers annuels depuis 2024. Cet import est ponctuel :
+il ne fait pas partie du workflow quotidien et ne demande pas d'API Key.
+
+```bash
+# Vérifier le téléchargement et créer le Parquet local
+uv run python scripts/importer_archives_meteofrance.py --local-only
+
+# Charger toutes les archives disponibles dans BigQuery
+uv run python scripts/importer_archives_meteofrance.py
+
+# Importer seulement certaines années si besoin
+uv run python scripts/importer_archives_meteofrance.py --annees 2024 2025
+```
+
+Le script harmonise les différents noms de colonnes utilisés selon les années,
+contrôle les 96 départements, puis réutilise le `MERGE` de la collecte
+quotidienne. Il peut donc être relancé sans créer de doublon.
+
+Après l'import, reconstruire les tables analytiques :
+
+```bash
+uv run dbt build --project-dir fourcasters
+```
+
 ## Documentation
 
 - `DOCUMENTATION/REGLES_CLEAN_CODE.md` : règles de développement et méthode de
   refactorisation ;
+- `DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql` : contrôles principaux ;
 - la documentation dbt peut être générée avec
   `uv run dbt docs generate --project-dir fourcasters`.
 
