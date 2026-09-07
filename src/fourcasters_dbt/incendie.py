@@ -164,6 +164,8 @@ def preparer_donnees(donnees_api: list[dict]) -> pd.DataFrame:
     donnees_incendie = pd.DataFrame(donnees_api)
     controler_colonnes(donnees_incendie)
     donnees_incendie = donnees_incendie[COLONNES_ATTENDUES].copy()
+    # Le nom de colonne de la table brute historique est `nom_dep`.
+    donnees_incendie = donnees_incendie.rename(columns={"dep_nom": "nom_dep"})
 
     donnees_incendie["reference_time"] = pd.to_datetime(
         donnees_incendie["reference_time"],
@@ -173,8 +175,8 @@ def preparer_donnees(donnees_api: list[dict]) -> pd.DataFrame:
     donnees_incendie["dep_code"] = donnees_incendie["dep_code"].map(
         normaliser_code_departement
     )
-    donnees_incendie["dep_nom"] = (
-        donnees_incendie["dep_nom"].astype("string").str.strip()
+    donnees_incendie["nom_dep"] = (
+        donnees_incendie["nom_dep"].astype("string").str.strip()
     )
     convertir_niveaux_danger(donnees_incendie)
 
@@ -237,7 +239,7 @@ def fusionner_historique_bigquery(client: bigquery.Client):
       UPDATE SET
         reference_time = source.reference_time,
         dep_code = source.dep_code,
-        dep_nom = source.dep_nom,
+        nom_dep = source.nom_dep,
         niveau_j1 = source.niveau_j1,
         niveau_j2 = source.niveau_j2,
         insere_a = source.insere_a
@@ -246,7 +248,7 @@ def fusionner_historique_bigquery(client: bigquery.Client):
       INSERT (
         reference_time,
         dep_code,
-        dep_nom,
+        nom_dep,
         niveau_j1,
         niveau_j2,
         row_hash,
@@ -255,7 +257,7 @@ def fusionner_historique_bigquery(client: bigquery.Client):
       VALUES (
         source.reference_time,
         source.dep_code,
-        source.dep_nom,
+        source.nom_dep,
         source.niveau_j1,
         source.niveau_j2,
         source.row_hash,

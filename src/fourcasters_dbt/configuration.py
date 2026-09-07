@@ -20,5 +20,9 @@ def configurer_google_cloud():
     """Utilise la clé locale seulement si aucune identité GCP n'est déjà fournie."""
 
     # GitHub Actions fournit déjà cette variable : il ne faut pas l'écraser.
-    if not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    # Sur GitHub Actions, l'action Google fournit déjà les identifiants.
+    if (
+        os.getenv("GITHUB_ACTIONS") != "true"
+        and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    ):
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = CHEMIN_CLE_GCP_LOCALE

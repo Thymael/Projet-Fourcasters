@@ -67,25 +67,33 @@ VARIABLES_METEO = [
 ]
 
 
-def trouver_date_a_recuperer() -> str:
-    """Renvoie la première journée absente de l'historique BigQuery."""
+def trouver_date_a_recuperer(nombre_communes: int) -> str:
+    """Renvoie la journée suivante ou reprend une journée incomplète."""
 
     date_maximum = (
         datetime.now(ZoneInfo("Europe/Paris")).date()
         - timedelta(days=RETARD_ERA5_JOURS)
     )
     requete = f"""
-        SELECT MAX(DATE(time)) AS derniere_date
+        SELECT
+            DATE(time) AS jour,
+            COUNT(DISTINCT code_insee) AS nombre_communes
         FROM `{TABLE_HISTORIQUE}`
+        WHERE DATE(time) >= '{DATE_DEBUT_ACTUALISATION.isoformat()}'
+        GROUP BY jour
+        ORDER BY jour DESC
+        LIMIT 1
     """
 
     client = bigquery.Client(project=PROJET_GCP)
-    derniere_date = list(client.query(requete).result())[0].derniere_date
+    resultats = list(client.query(requete).result())
 
-    if derniere_date is None:
+    if not resultats:
         date_demandee = DATE_DEBUT_ACTUALISATION
+    elif resultats[0].nombre_communes < nombre_communes:
+        date_demandee = resultats[0].jour
     else:
-        date_demandee = derniere_date + timedelta(days=1)
+        date_demandee = resultats[0].jour + timedelta(days=1)
 
     if date_demandee > date_maximum:
         raise ValueError(
@@ -96,12 +104,10 @@ def trouver_date_a_recuperer() -> str:
     return date_demandee.isoformat()
 
 
-def creer_cle_commune(commune: pd.Series) -> tuple[str, str]:
-    """Crée une clé avec le nom et le département d'une commune."""
+def creer_cle_commune(commune: pd.Series) -> str:
+    """Crée la clé stable utilisée pour reprendre une collecte interrompue."""
 
-    nom_commune = str(commune["commune"]).strip()
-    numero_departement = str(commune["numero_departement"]).strip()
-    return nom_commune, numero_departement
+    return str(commune["code_insee"]).strip()
 
 
 def preparer_commune(
@@ -118,21 +124,11 @@ def preparer_commune(
     if len(meteo_commune) != 1:
         raise ValueError(f"Une seule ligne était attendue pour {commune['commune']}.")
 
-    nom_commune, numero_departement = creer_cle_commune(commune)
-    latitude = float(commune["latitude"])
-    longitude = float(commune["longitude"])
+    code_insee = creer_cle_commune(commune)
+    meteo_commune["code_insee"] = code_insee
 
-    # Ces deux groupes de colonnes sont encore attendus par les modèles existants.
-    meteo_commune["nom_poi"] = nom_commune
-    meteo_commune["numero_departement"] = numero_departement
-    meteo_commune["latitude_poi"] = latitude
-    meteo_commune["longitude_poi"] = longitude
-    meteo_commune["ville"] = nom_commune
-    meteo_commune["departement"] = commune["departement"]
-    meteo_commune["latitude"] = latitude
-    meteo_commune["longitude"] = longitude
-
-    texte_hash = f"{date_a_recuperer}|{nom_commune}|{numero_departement}"
+    # Le hash reprend le grain réel de la table brute : une date et un point.
+    texte_hash = f"{date_a_recuperer}|{code_insee}"
     meteo_commune["row_hash"] = hashlib.sha256(
         texte_hash.encode("utf-8")
     ).hexdigest()
@@ -239,17 +235,14 @@ def lire_communes_deja_recuperees(fichier_csv: Path) -> set[tuple[str, str]]:
 
     donnees_existantes = pd.read_csv(
         fichier_csv,
-        dtype={"numero_departement": "string"},
+        dtype={"numero_departement": "string", "code_insee": "string"},
     )
-    return set(zip(
-        donnees_existantes["nom_poi"],
-        donnees_existantes["numero_departement"],
-    ))
+    return set(donnees_existantes["code_insee"].astype("string"))
 
 
 def selectionner_communes_manquantes(
         communes: pd.DataFrame,
-        communes_recuperees: set[tuple[str, str]]) -> pd.DataFrame:
+        communes_recuperees: set[str]) -> pd.DataFrame:
     """Garde uniquement les communes absentes du CSV de reprise."""
 
     indices_manquants = [
@@ -311,7 +304,7 @@ def creer_parquet(
 
     actualisation = pd.read_csv(
         fichier_csv,
-        dtype={"numero_departement": "string"},
+        dtype={"numero_departement": "string", "code_insee": "string"},
     )
     actualisation = actualisation.drop_duplicates("row_hash", keep="last")
     actualisation["time"] = pd.to_datetime(actualisation["time"], utc=True)
@@ -334,13 +327,13 @@ def main():
     configurer_google_cloud()
     DOSSIER_OPENMETEO.mkdir(parents=True, exist_ok=True)
 
-    date_a_recuperer = trouver_date_a_recuperer()
-    fichier_csv = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.csv"
-    fichier_parquet = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.parquet"
     communes = pd.read_csv(
         FICHIER_COMMUNES,
-        dtype={"numero_departement": "string"},
+        dtype={"numero_departement": "string", "code_insee": "string"},
     )
+    date_a_recuperer = trouver_date_a_recuperer(len(communes))
+    fichier_csv = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.csv"
+    fichier_parquet = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.parquet"
 
     collecter_communes(communes, date_a_recuperer, fichier_csv)
     actualisation = creer_parquet(fichier_csv, fichier_parquet)
@@ -360,7 +353,135 @@ def main():
     print(f"Fichier envoyé : {adresse_gcs}")
     charger_parquet_bigquery(adresse_gcs, TABLE_LANDING, len(communes))
 
-    # La fusion et dbt sont lancés ensuite par GitHub Actions.
+    # La fusion est faite ici pour que le script fonctionne aussi hors GitHub Actions.
+    client = bigquery.Client(project=PROJET_GCP)
+    fusionner_historique_bigquery(client)
+
+
+def fusionner_historique_bigquery(client: bigquery.Client):
+    """Ajoute la journée dans l'historique sans créer de doublon."""
+
+    requete = f"""
+    CREATE TABLE IF NOT EXISTS `{TABLE_HISTORIQUE}`
+    PARTITION BY DATE(time)
+    CLUSTER BY code_insee
+    AS
+    SELECT *
+    FROM `{TABLE_LANDING}`
+    WHERE FALSE;
+
+    MERGE `{TABLE_HISTORIQUE}` AS cible
+    USING `{TABLE_LANDING}` AS source
+      ON cible.row_hash = source.row_hash
+
+    WHEN MATCHED THEN UPDATE SET
+        time = source.time,
+        code_insee = source.code_insee,
+        insere_a = source.insere_a,
+        weather_code = source.weather_code,
+        temperature_2m_mean = source.temperature_2m_mean,
+        temperature_2m_min = source.temperature_2m_min,
+        temperature_2m_max = source.temperature_2m_max,
+        apparent_temperature_mean = source.apparent_temperature_mean,
+        apparent_temperature_min = source.apparent_temperature_min,
+        apparent_temperature_max = source.apparent_temperature_max,
+        relative_humidity_2m_mean = source.relative_humidity_2m_mean,
+        relative_humidity_2m_min = source.relative_humidity_2m_min,
+        relative_humidity_2m_max = source.relative_humidity_2m_max,
+        dew_point_2m_mean = source.dew_point_2m_mean,
+        precipitation_sum = source.precipitation_sum,
+        rain_sum = source.rain_sum,
+        snowfall_sum = source.snowfall_sum,
+        precipitation_hours = source.precipitation_hours,
+        wind_speed_10m_mean = source.wind_speed_10m_mean,
+        wind_speed_10m_max = source.wind_speed_10m_max,
+        wind_gusts_10m_max = source.wind_gusts_10m_max,
+        wind_direction_10m_dominant = source.wind_direction_10m_dominant,
+        cloud_cover_mean = source.cloud_cover_mean,
+        pressure_msl_mean = source.pressure_msl_mean,
+        sunshine_duration = source.sunshine_duration,
+        shortwave_radiation_sum = source.shortwave_radiation_sum,
+        et0_fao_evapotranspiration = source.et0_fao_evapotranspiration,
+        vapour_pressure_deficit_max = source.vapour_pressure_deficit_max,
+        soil_moisture_0_to_7cm_mean = source.soil_moisture_0_to_7cm_mean,
+        soil_moisture_7_to_28cm_mean = source.soil_moisture_7_to_28cm_mean,
+        soil_moisture_28_to_100cm_mean = source.soil_moisture_28_to_100cm_mean,
+        soil_temperature_0_to_7cm_mean = source.soil_temperature_0_to_7cm_mean
+
+    WHEN NOT MATCHED THEN
+      INSERT (
+        time,
+        code_insee,
+        row_hash,
+        insere_a,
+        weather_code,
+        temperature_2m_mean,
+        temperature_2m_min,
+        temperature_2m_max,
+        apparent_temperature_mean,
+        apparent_temperature_min,
+        apparent_temperature_max,
+        relative_humidity_2m_mean,
+        relative_humidity_2m_min,
+        relative_humidity_2m_max,
+        dew_point_2m_mean,
+        precipitation_sum,
+        rain_sum,
+        snowfall_sum,
+        precipitation_hours,
+        wind_speed_10m_mean,
+        wind_speed_10m_max,
+        wind_gusts_10m_max,
+        wind_direction_10m_dominant,
+        cloud_cover_mean,
+        pressure_msl_mean,
+        sunshine_duration,
+        shortwave_radiation_sum,
+        et0_fao_evapotranspiration,
+        vapour_pressure_deficit_max,
+        soil_moisture_0_to_7cm_mean,
+        soil_moisture_7_to_28cm_mean,
+        soil_moisture_28_to_100cm_mean,
+        soil_temperature_0_to_7cm_mean
+      )
+      VALUES (
+        source.time,
+        source.code_insee,
+        source.row_hash,
+        source.insere_a,
+        source.weather_code,
+        source.temperature_2m_mean,
+        source.temperature_2m_min,
+        source.temperature_2m_max,
+        source.apparent_temperature_mean,
+        source.apparent_temperature_min,
+        source.apparent_temperature_max,
+        source.relative_humidity_2m_mean,
+        source.relative_humidity_2m_min,
+        source.relative_humidity_2m_max,
+        source.dew_point_2m_mean,
+        source.precipitation_sum,
+        source.rain_sum,
+        source.snowfall_sum,
+        source.precipitation_hours,
+        source.wind_speed_10m_mean,
+        source.wind_speed_10m_max,
+        source.wind_gusts_10m_max,
+        source.wind_direction_10m_dominant,
+        source.cloud_cover_mean,
+        source.pressure_msl_mean,
+        source.sunshine_duration,
+        source.shortwave_radiation_sum,
+        source.et0_fao_evapotranspiration,
+        source.vapour_pressure_deficit_max,
+        source.soil_moisture_0_to_7cm_mean,
+        source.soil_moisture_7_to_28cm_mean,
+        source.soil_moisture_28_to_100cm_mean,
+        source.soil_temperature_0_to_7cm_mean
+      );
+    """
+    client.query(requete).result()
+    print(f"Historique météo mis à jour : {TABLE_HISTORIQUE}")
 
 
 if __name__ == "__main__":

@@ -4,7 +4,6 @@ on:
   schedule:
     - cron: '0 4 * * *'
       timezone: 'Europe/Paris'
-
   workflow_dispatch:
 
 jobs:
@@ -12,28 +11,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 📥 Récupérer le dépôt
+      - name: Récupérer le dépôt
         uses: actions/checkout@v4
 
-      - name: ☁️ Authentification Google Cloud
+      - name: Authentification Google Cloud
         uses: google-github-actions/auth@v3
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
 
-      - name: ⚡ Installer uv
+      - name: Installer uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
 
-      - name: 📦 Installer les dépendances
+      - name: Installer les dépendances
         run: uv sync --frozen
 
-      - name: 🌦️ 1. Actualiser les données météo
+      - name: Actualiser Open-Meteo et Météo-France
         env:
           METEOFRANCE_API_KEY: ${{ secrets.METEOFRANCE_API_KEY }}
         run: uv run python scripts/actualiser_fourcasters.py
 
-      - name: 🔧 2. Configurer dbt
+      - name: Configurer dbt
         run: |
           mkdir -p ~/.dbt
           cat > ~/.dbt/profiles.yml <<'EOF'
@@ -49,5 +48,5 @@ jobs:
                 location: US
           EOF
 
-      - name: 🛠️ 3. Actualiser les modèles dbt
+      - name: Construire les modèles et les tests dbt
         run: uv run dbt build --project-dir fourcasters
