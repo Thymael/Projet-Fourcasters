@@ -36,8 +36,8 @@ Principales tables :
 - `openmeteo_analyse.dim_commune` et `dim_date` : dimensions ;
 - `openmeteo_analyse.fact_meteo` : faits météo.
 
-Les modèles dbt `dim_departement` et `fact_danger_incendie` sont la prochaine
-étape du volet incendie.
+Les modèles dbt `dim_departement` et `fact_danger_incendie` complètent le volet
+incendie.
 
 ## Organisation
 
@@ -75,7 +75,10 @@ ajoutés à Git.
 ## Lancer les traitements
 
 ```bash
-# Actualisation météo
+# Actualisation complète : météo puis incendie
+uv run python scripts/actualiser_fourcasters.py
+
+# Lancer seulement une collecte si besoin
 uv run python scripts/actualiser_openmeteo.py
 
 # Test incendie sans envoi dans Google Cloud
