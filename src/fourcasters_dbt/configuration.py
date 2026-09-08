@@ -1,28 +1,35 @@
-"""Paramètres partagés par les deux pipelines Fourcasters."""
+"""Chemins et paramètres communs au projet."""
 
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 
-# Chemins du projet
+
 RACINE_PROJET = Path(__file__).resolve().parents[2]
 FICHIER_COMMUNES = RACINE_PROJET / "fourcasters" / "seeds" / "referentiel_communes.csv"
 DOSSIER_OPENMETEO = RACINE_PROJET / "data" / "actualisation"
 DOSSIER_INCENDIE = RACINE_PROJET / "data" / "actualisation_incendie"
 
-# Google Cloud
 PROJET_GCP = "fourcasters-openmeteo-loick"
-CHEMIN_CLE_GCP_LOCALE = "C:/dev/cle_bigquery.json"
 NOM_BUCKET = "fourcasters-openmeteo-loick-data"
+CLE_GCP_PAR_DEFAUT = RACINE_PROJET.parent / "cle_bigquery.json"
+
+# En local, les secrets sont lus depuis .env. Ce fichier n'est jamais versionné.
+load_dotenv(RACINE_PROJET / ".env")
 
 
-def configurer_google_cloud():
-    """Utilise la clé locale seulement si aucune identité GCP n'est déjà fournie."""
+def configurer_google_cloud() -> None:
+    """Configure la clé GCP locale si aucune identité n'est déjà active."""
 
-    # GitHub Actions fournit déjà cette variable : il ne faut pas l'écraser.
-    # Sur GitHub Actions, l'action Google fournit déjà les identifiants.
-    if (
-        os.getenv("GITHUB_ACTIONS") != "true"
-        and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    ):
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = CHEMIN_CLE_GCP_LOCALE
+    if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        return
+
+    # Ce chemin garde le fonctionnement historique du projet sous C:/dev.
+    if CLE_GCP_PAR_DEFAUT.exists():
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(CLE_GCP_PAR_DEFAUT)
+        return
+
+    raise FileNotFoundError(
+        "Clé Google Cloud introuvable. Ajoute son chemin dans le fichier .env."
+    )

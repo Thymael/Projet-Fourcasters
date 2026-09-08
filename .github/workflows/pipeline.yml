@@ -1,4 +1,4 @@
-name: Pipeline ELT - Actualisation quotidienne Fourcasters
+name: Actualisation quotidienne Fourcasters
 
 on:
   schedule:
@@ -6,9 +6,13 @@ on:
       timezone: 'Europe/Paris'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   actualisation:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Récupérer le dépôt
@@ -48,5 +52,5 @@ jobs:
                 location: US
           EOF
 
-      - name: Construire les modèles et les tests dbt
+      - name: Construire et tester les modèles dbt
         run: uv run dbt build --project-dir fourcasters

@@ -1,15 +1,11 @@
 SELECT
-
     code_insee,
     commune,
-
     numero_departement,
     departement,
     region,
-
     latitude,
     longitude,
-
     service,
     centroide
 

@@ -1,85 +1,48 @@
-WITH meteo AS (
-
-    SELECT *
-    FROM {{ ref('stg_meteo_journaliere') }}
-
-),
-
-communes AS (
-
-    SELECT *
-    FROM {{ ref('referentiel_communes') }}
-
-)
-
 SELECT
+    meteo.row_hash,
+    meteo.insere_a,
+    meteo.date,
 
-    -- Identifiants techniques
-    m.row_hash,
-    m.insere_a,
+    communes.code_insee,
+    communes.commune,
+    communes.numero_departement,
+    communes.departement,
+    communes.region,
+    communes.latitude,
+    communes.longitude,
+    communes.service,
+    communes.centroide,
 
-    -- Date
-    m.date,
+    meteo.code_meteo,
+    meteo.temperature_moyenne,
+    meteo.temperature_minimale,
+    meteo.temperature_maximale,
+    meteo.temperature_ressentie_moyenne,
+    meteo.temperature_ressentie_minimale,
+    meteo.temperature_ressentie_maximale,
+    meteo.humidite_moyenne,
+    meteo.humidite_minimale,
+    meteo.humidite_maximale,
+    meteo.point_de_rosee_moyen,
+    meteo.precipitations_totales,
+    meteo.pluie_totale,
+    meteo.neige_totale,
+    meteo.heures_de_precipitations,
+    meteo.vitesse_vent_moyenne,
+    meteo.vitesse_vent_maximale,
+    meteo.rafale_vent_maximale,
+    meteo.direction_vent_dominante,
+    meteo.couverture_nuageuse_moyenne,
+    meteo.pression_moyenne,
+    meteo.duree_ensoleillement,
+    meteo.rayonnement_solaire_total,
+    meteo.evapotranspiration,
+    meteo.deficit_pression_vapeur_maximal,
+    meteo.humidite_sol_0_7cm,
+    meteo.humidite_sol_7_28cm,
+    meteo.humidite_sol_28_100cm,
+    meteo.temperature_sol_0_7cm
 
-    -- Référentiel géographique officiel
-    c.code_insee,
-    c.commune,
-    c.numero_departement,
-    c.departement,
-    c.region,
-    c.service,
-    c.centroide,
-
-    -- Coordonnées du référentiel
-    c.latitude,
-    c.longitude,
-
-    -- Code météo
-    m.code_meteo,
-
-    -- Températures
-    m.temperature_moyenne,
-    m.temperature_minimale,
-    m.temperature_maximale,
-    m.temperature_ressentie_moyenne,
-    m.temperature_ressentie_minimale,
-    m.temperature_ressentie_maximale,
-
-    -- Humidité
-    m.humidite_moyenne,
-    m.humidite_minimale,
-    m.humidite_maximale,
-    m.point_de_rosee_moyen,
-
-    -- Précipitations
-    m.precipitations_totales,
-    m.pluie_totale,
-    m.neige_totale,
-    m.heures_de_precipitations,
-
-    -- Vent
-    m.vitesse_vent_moyenne,
-    m.vitesse_vent_maximale,
-    m.rafale_vent_maximale,
-    m.direction_vent_dominante,
-
-    -- Atmosphère
-    m.couverture_nuageuse_moyenne,
-    m.pression_moyenne,
-    m.duree_ensoleillement,
-    m.rayonnement_solaire_total,
-
-    -- Évapotranspiration
-    m.evapotranspiration,
-    m.deficit_pression_vapeur_maximal,
-
-    -- Sol
-    m.humidite_sol_0_7cm,
-    m.humidite_sol_7_28cm,
-    m.humidite_sol_28_100cm,
-    m.temperature_sol_0_7cm
-
-FROM meteo AS m
-
-INNER JOIN communes AS c
-    ON m.code_insee = c.code_insee
+FROM {{ ref('stg_meteo_journaliere') }} AS meteo
+INNER JOIN {{ ref('referentiel_communes') }} AS communes
+    ON meteo.code_insee = communes.code_insee

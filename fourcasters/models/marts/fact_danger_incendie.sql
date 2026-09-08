@@ -1,7 +1,4 @@
-{{ config(materialized = 'table') }}
-
--- Prévisions de danger incendie ramenées à une ligne par date et département
-
+-- Une publication Météo-France produit une ligne J1 et une ligne J2.
 SELECT
     CONCAT(row_hash, '-J1') AS id_danger_incendie,
     reference_time,
@@ -11,7 +8,6 @@ SELECT
     'J1' AS echeance,
     niveau_j1 AS niveau_danger,
     insere_a
-
 FROM {{ ref('stg_meteo_forets') }}
 
 UNION ALL
@@ -25,5 +21,4 @@ SELECT
     'J2' AS echeance,
     niveau_j2 AS niveau_danger,
     insere_a
-
 FROM {{ ref('stg_meteo_forets') }}
