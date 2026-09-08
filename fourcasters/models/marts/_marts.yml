@@ -93,3 +93,31 @@ models:
               arguments:
                 values: [1, 2, 3, 4]
                 quote: false
+
+  - name: pbi_risque_incendie
+    description: "Table plate pour le suivi du danger et de la météo dans Power BI."
+    columns:
+      - name: id_danger_incendie
+        data_tests: [not_null, unique]
+      - name: date_publication
+        data_tests: [not_null]
+      - name: date_prevision
+        data_tests: [not_null]
+      - name: numero_departement
+        data_tests: [not_null]
+      - name: echeance
+        data_tests: [not_null]
+      - name: niveau_danger
+        data_tests: [not_null]
+
+  - name: ml_features_incendie
+    description: >-
+      Variables météo candidates pour un futur modèle de Machine Learning.
+      La table ne contient pas encore de cible d'incendie observé.
+    columns:
+      - name: id_feature
+        data_tests: [not_null, unique]
+      - name: date_publication
+        data_tests: [not_null]
+      - name: numero_departement
+        data_tests: [not_null]
