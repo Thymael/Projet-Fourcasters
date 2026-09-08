@@ -45,7 +45,7 @@ incendie.
 ```text
 Projet_Fourcasters/
 ├── fourcasters/             # projet dbt
-├── scripts/                 # points d'entrée des collectes
+├── scripts/                 # point d'entrée quotidien et import historique
 ├── src/fourcasters_dbt/     # fonctions Python rangées par thème
 ├── DOCUMENTATION/           # choix techniques et livrables
 ├── data/                    # fichiers locaux générés, non versionnés
@@ -79,14 +79,17 @@ ajoutés à Git.
 # Actualisation complète : météo puis incendie
 uv run python scripts/actualiser_fourcasters.py
 
-# Lancer seulement une collecte si besoin
-uv run python scripts/actualiser_openmeteo.py
+# Lancer seulement Open-Meteo si besoin
+uv run python scripts/actualiser_fourcasters.py --openmeteo-only
 
-# Test incendie sans envoi dans Google Cloud
+# Lancer seulement l'incendie
+uv run python scripts/actualiser_fourcasters.py --incendie-only
+
+# Tester l'incendie sans envoi dans Google Cloud
 set -a
 source .env
 set +a
-uv run python scripts/actualiser_meteofrance_incendie.py --local-only
+uv run python scripts/actualiser_fourcasters.py --incendie-only --local-only
 
 # Construction et tests dbt
 uv run dbt build --project-dir fourcasters
@@ -95,6 +98,10 @@ uv run dbt build --project-dir fourcasters
 Le pipeline contrôle notamment la volumétrie attendue, les doublons, les
 colonnes obligatoires et les clés `row_hash`. Une collecte incomplète bloque le
 chargement suivant.
+
+Les fonctions `main_openmeteo()` et `main_incendie()` sont regroupées dans
+`scripts/actualiser_fourcasters.py`. Les modules du dossier `src/` contiennent
+uniquement les fonctions métier utilisées par ces deux orchestrations.
 
 ## Importer l'historique incendie
 
