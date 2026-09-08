@@ -11,14 +11,7 @@ import requests
 from google.cloud import bigquery
 
 from fourcasters_dbt.configuration import (
-    DOSSIER_OPENMETEO,
-    FICHIER_COMMUNES,
     PROJET_GCP,
-    configurer_google_cloud,
-)
-from fourcasters_dbt.google_cloud import (
-    charger_parquet_bigquery,
-    envoyer_parquet_gcs,
 )
 
 
@@ -322,46 +315,6 @@ def creer_parquet(
     return actualisation
 
 
-def main():
-    """Orchestre la collecte Open-Meteo et le chargement dans BigQuery."""
-
-    configurer_google_cloud()
-    DOSSIER_OPENMETEO.mkdir(parents=True, exist_ok=True)
-
-    communes = pd.read_csv(
-        FICHIER_COMMUNES,
-        dtype={"numero_departement": "string", "code_insee": "string"},
-    )
-    date_a_recuperer = trouver_date_a_recuperer(len(communes))
-    if date_a_recuperer is None:
-        print("Open-Meteo est déjà à jour.")
-        return
-    fichier_csv = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.csv"
-    fichier_parquet = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.parquet"
-
-    collecter_communes(communes, date_a_recuperer, fichier_csv)
-    actualisation = creer_parquet(fichier_csv, fichier_parquet)
-
-    print("\nCOLLECTE TERMINÉE")
-    print(f"Communes : {len(actualisation)}/{len(communes)}")
-    print(f"Parquet : {fichier_parquet}")
-
-    if len(actualisation) != len(communes):
-        raise RuntimeError(
-            f"Envoi impossible : {len(actualisation)} communes sur {len(communes)}."
-        )
-
-    print("\nEnvoi vers Google Cloud...")
-    chemin_gcs = f"{DOSSIER_GCS}/{fichier_parquet.name}"
-    adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    print(f"Fichier envoyé : {adresse_gcs}")
-    charger_parquet_bigquery(adresse_gcs, TABLE_LANDING, len(communes))
-
-    # La fusion est faite ici pour que le script fonctionne aussi hors GitHub Actions.
-    client = bigquery.Client(project=PROJET_GCP)
-    fusionner_historique_bigquery(client)
-
-
 def fusionner_historique_bigquery(client: bigquery.Client):
     """Ajoute la journée dans l'historique sans créer de doublon."""
 
@@ -486,7 +439,3 @@ def fusionner_historique_bigquery(client: bigquery.Client):
     """
     client.query(requete).result()
     print(f"Historique météo mis à jour : {TABLE_HISTORIQUE}")
-
-
-if __name__ == "__main__":
-    main()

@@ -6,7 +6,7 @@ pipeline Fourcasters.
 
 ## Ce qui est déjà bien construit
 
-- les deux sources ont chacune leur point d'entrée ;
+- les deux sources ont chacune une orchestration clairement séparée ;
 - les secrets ne sont pas écrits dans le code ;
 - les appels API possèdent des tentatives et un délai maximum ;
 - les collectes contrôlent le nombre de communes ou de départements ;
@@ -38,7 +38,8 @@ Ces règles métier doivent être conservées pendant une refactorisation.
 7. Un commentaire explique **pourquoi**, pas ce que la ligne dit déjà.
 8. Le code inutilisé est supprimé ou déplacé dans `ARCHIVES/`.
 9. Les secrets viennent de l'environnement ou de GitHub Secrets.
-10. Le script lancé directement ne contient que l'appel à `main()`.
+10. Le fichier principal contient les orchestrations, tandis que les fonctions
+    métier restent dans les modules du dossier `src/`.
 
 Les annotations de type sont utiles lorsqu'elles restent simples. Elles ne
 doivent pas rendre un script étudiant plus difficile à lire.
@@ -47,8 +48,8 @@ doivent pas rendre un script étudiant plus difficile à lire.
 
 ```text
 scripts/
-├── actualiser_openmeteo.py
-└── actualiser_meteofrance_incendie.py
+├── actualiser_fourcasters.py
+└── importer_archives_meteofrance.py
 
 src/fourcasters_dbt/
 ├── configuration.py
@@ -57,7 +58,9 @@ src/fourcasters_dbt/
 └── incendie.py
 ```
 
-- `scripts/` contient les deux points d'entrée visibles ;
+- `actualiser_fourcasters.py` contient `main_openmeteo()`, `main_incendie()` et
+  le `main()` général appelé par le workflow ;
+- `importer_archives_meteofrance.py` reste un outil ponctuel séparé ;
 - `configuration.py` contient les chemins et constantes partagés ;
 - `google_cloud.py` contient le code commun à GCS et BigQuery ;
 - `openmeteo.py` et `incendie.py` gardent leurs règles métier séparées.
@@ -70,8 +73,8 @@ src/fourcasters_dbt/
 
    ```bash
    uv run python -m py_compile \
-     scripts/actualiser_openmeteo.py \
-     scripts/actualiser_meteofrance_incendie.py \
+     scripts/actualiser_fourcasters.py \
+     scripts/importer_archives_meteofrance.py \
      src/fourcasters_dbt/*.py
    ```
 

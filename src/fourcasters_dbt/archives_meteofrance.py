@@ -182,7 +182,7 @@ def enregistrer_parquet(donnees: pd.DataFrame, annees: list[int]) -> Path:
     return fichier
 
 
-def main():
+def importer_archives():
     """Télécharge, contrôle et charge les archives dans BigQuery."""
 
     arguments = lire_arguments()
@@ -215,7 +215,3 @@ def main():
     charger_parquet_bigquery(adresse_gcs, TABLE_LANDING, len(donnees))
     fusionner_historique_bigquery(client_bigquery)
     print("\nImport des archives terminé.")
-
-
-if __name__ == "__main__":
-    main()

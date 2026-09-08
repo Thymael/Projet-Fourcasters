@@ -2,7 +2,6 @@
 
 import hashlib
 import os
-import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,13 +11,7 @@ import requests
 from google.cloud import bigquery
 
 from fourcasters_dbt.configuration import (
-    DOSSIER_INCENDIE,
     PROJET_GCP,
-    configurer_google_cloud,
-)
-from fourcasters_dbt.google_cloud import (
-    charger_parquet_bigquery,
-    envoyer_parquet_gcs,
 )
 
 
@@ -278,47 +271,3 @@ def fusionner_historique_bigquery(client: bigquery.Client):
         raise ValueError("La table historique contient des doublons.")
 
     print(f"Historique mis à jour : {resultat.nombre_lignes} lignes.")
-
-
-def main():
-    """Orchestre la collecte incendie et son chargement dans BigQuery."""
-
-    mode_local = "--local-only" in sys.argv
-    api_key = lire_api_key()
-    configurer_google_cloud()
-    DOSSIER_INCENDIE.mkdir(parents=True, exist_ok=True)
-
-    print("\nACTUALISATION MÉTÉO DES FORÊTS")
-    donnees_api = recuperer_meteo_forets(api_key)
-    donnees_incendie = preparer_donnees(donnees_api)
-    fichier_parquet = enregistrer_parquet(donnees_incendie)
-    reference_time = donnees_incendie["reference_time"].iloc[0]
-
-    print(f"Départements : {len(donnees_incendie)}/{NOMBRE_DEPARTEMENTS_ATTENDU}")
-    print(f"Publication : {reference_time}")
-    print(f"Parquet : {fichier_parquet}")
-
-    if mode_local:
-        print("Mode local : aucun envoi vers Google Cloud.")
-        return
-
-    print("\nEnvoi vers Google Cloud...")
-    chemin_gcs = (
-        f"{DOSSIER_GCS}/{reference_time:%Y/%m/%d}/{fichier_parquet.name}"
-    )
-    adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    print(f"Fichier envoyé : {adresse_gcs}")
-
-    client_bigquery = bigquery.Client(project=PROJET_GCP)
-    preparer_datasets_bigquery(client_bigquery)
-    charger_parquet_bigquery(
-        adresse_gcs,
-        TABLE_LANDING,
-        NOMBRE_DEPARTEMENTS_ATTENDU,
-    )
-    fusionner_historique_bigquery(client_bigquery)
-    print("\nActualisation incendie terminée.")
-
-
-if __name__ == "__main__":
-    main()
