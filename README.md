@@ -41,7 +41,9 @@ Les principales tables finales sont :
 
 - `dim_date`, `dim_commune` et `dim_departement` ;
 - `fact_meteo` ;
-- `fact_danger_incendie`.
+- `fact_danger_incendie` ;
+- `pbi_risque_incendie`, une table plate pour Power BI ;
+- `ml_features_incendie`, des variables météo préparées pour un futur ML.
 
 ## Organisation
 
@@ -107,11 +109,21 @@ Les requêtes de vérification manuelle sont dans
 Les conventions de code et les risques du projet sont résumés dans les deux
 autres fichiers du dossier `DOCUMENTATION/`.
 
+## EDA et suite du projet
+
+Le premier notebook est dans
+[`notebooks/01_eda_fourcasters.ipynb`](notebooks/01_eda_fourcasters.ipynb). Il
+se connecte à BigQuery et vérifie les volumes, les dates et les valeurs
+manquantes avant de commencer les graphiques Power BI.
+
+La table ML ne contient pas encore de cible d'incendie observé. Il faudra
+ajouter cette source avant d'entraîner un modèle supervisé.
+
 ## État du projet
 
 - ingestion et actualisation quotidienne : opérationnelles ;
 - modèle en étoile dbt : opérationnel ;
-- EDA, rapport Power BI et préparation ML : prochaines étapes.
+- préparation des tables EDA, Power BI et ML : en cours.
 
 ## Auteur
 

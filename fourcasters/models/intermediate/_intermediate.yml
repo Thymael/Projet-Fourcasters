@@ -21,3 +21,13 @@ models:
         data_tests: [not_null]
       - name: longitude
         data_tests: [not_null]
+
+  - name: int_meteo_departement_jour
+    description: "Météo agrégée par département et par jour."
+    columns:
+      - name: date
+        data_tests: [not_null]
+      - name: numero_departement
+        data_tests: [not_null]
+      - name: nombre_points_meteo
+        data_tests: [not_null]
