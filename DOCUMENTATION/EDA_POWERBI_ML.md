@@ -7,6 +7,7 @@
 | `int_meteo_departement_jour` | département + jour | base commune pour les agrégations |
 | `pbi_risque_incendie` | publication + département + échéance | rapport Power BI |
 | `ml_features_incendie` | date de publication + département | variables d'un futur modèle |
+| `ml_train_incendie` | publication + département + échéance | apprentissage J1/J2 |
 
 `pbi_risque_incendie` associe le danger prévu à la météo disponible à la date
 de publication. La jointure ne se fait donc pas sur la date J1 ou J2 : cela
@@ -30,9 +31,14 @@ danger, part des niveaux 3 et 4, et taux de lignes avec météo disponible.
 sur les sept derniers jours connus avant la publication. Le niveau de danger
 n'est pas copié dans cette table pour éviter une fuite de cible.
 
-Le projet ne possède pas encore de véritable cible d'incendie observé. Avant
-d'entraîner un modèle supervisé, il faudra ajouter une source avec au minimum
-une date et un département, puis définir clairement la période de prédiction.
+`ml_train_incendie` ajoute ensuite la cible `cible_niveau_danger` issue de
+Météo-France, avec l'échéance `J1` ou `J2`. Le projet cherche donc à reproduire
+la classe de danger publiée par Météo-France, et non à prévoir si un incendie
+réel va effectivement se déclarer.
+
+Pour le ML, on pourra commencer par un modèle de classification à quatre
+classes. L'échéance peut être utilisée comme variable, ou bien on peut
+entraîner un modèle séparé pour J1 et pour J2.
 
 ## EDA
 

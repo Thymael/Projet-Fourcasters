@@ -1,5 +1,5 @@
 /* Variables météo disponibles avant une publication.
-   Le niveau de danger n'est volontairement pas repris : ce n'est pas une cible observée. */
+   Le niveau de danger est gardé à part pour éviter une fuite de cible. */
 WITH meteo_avec_rolling AS (
     SELECT
         date,

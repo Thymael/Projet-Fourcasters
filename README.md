@@ -43,7 +43,8 @@ Les principales tables finales sont :
 - `fact_meteo` ;
 - `fact_danger_incendie` ;
 - `pbi_risque_incendie`, une table plate pour Power BI ;
-- `ml_features_incendie`, des variables météo préparées pour un futur ML.
+- `ml_features_incendie`, les variables météo disponibles avant la publication ;
+- `ml_train_incendie`, le jeu d'apprentissage J1/J2 avec la cible Météo-France.
 
 ## Organisation
 
@@ -116,8 +117,9 @@ Le premier notebook est dans
 se connecte à BigQuery et vérifie les volumes, les dates et les valeurs
 manquantes avant de commencer les graphiques Power BI.
 
-La table ML ne contient pas encore de cible d'incendie observé. Il faudra
-ajouter cette source avant d'entraîner un modèle supervisé.
+Le modèle ML vise à prévoir le niveau de danger Météo-France à J1 et J2. La
+cible est `cible_niveau_danger`, une classe de 1 à 4. Il ne s'agit pas de
+prévoir un incendie réellement observé.
 
 ## État du projet
 

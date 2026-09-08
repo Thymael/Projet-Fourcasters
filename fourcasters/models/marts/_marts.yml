@@ -112,8 +112,8 @@ models:
 
   - name: ml_features_incendie
     description: >-
-      Variables météo candidates pour un futur modèle de Machine Learning.
-      La table ne contient pas encore de cible d'incendie observé.
+      Variables météo disponibles avant chaque publication. Cette table ne
+      contient volontairement pas la cible pour éviter une fuite d'information.
     columns:
       - name: id_feature
         data_tests: [not_null, unique]
@@ -121,3 +121,30 @@ models:
         data_tests: [not_null]
       - name: numero_departement
         data_tests: [not_null]
+
+  - name: ml_train_incendie
+    description: >-
+      Jeu d'apprentissage pour prévoir le niveau de danger Météo-France à J1
+      et J2. La cible est le niveau publié par Météo-France, de 1 à 4.
+    columns:
+      - name: id_apprentissage
+        data_tests: [not_null, unique]
+      - name: date_publication
+        data_tests: [not_null]
+      - name: date_prevision
+        data_tests: [not_null]
+      - name: numero_departement
+        data_tests: [not_null]
+      - name: echeance
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["J1", "J2"]
+      - name: cible_niveau_danger
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+                quote: false
