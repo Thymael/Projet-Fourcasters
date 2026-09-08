@@ -1,14 +1,10 @@
 version: 2
 
 sources:
-
   - name: openmeteo_raw
     description: "Données météorologiques brutes stockées dans BigQuery."
-
-    database: "fourcasters-openmeteo-loick"
-    schema: "openmeteo_raw"
-
+    database: fourcasters-openmeteo-loick
+    schema: openmeteo_raw
     tables:
-
       - name: meteo_journaliere
-        description: "Historique journalier Open-Meteo utilisé comme source principale par dbt."
+        description: "Historique quotidien Open-Meteo."

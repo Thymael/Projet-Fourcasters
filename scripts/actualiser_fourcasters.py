@@ -1,6 +1,6 @@
 """Point d'entrée unique des deux collectes quotidiennes Fourcasters."""
 
-import sys
+import argparse
 
 import pandas as pd
 from google.cloud import bigquery
@@ -38,8 +38,9 @@ from fourcasters_dbt.openmeteo import (
 
 
 def main_openmeteo() -> None:
-    """Orchestre la collecte Open-Meteo et son chargement dans BigQuery."""
+    """Lance la collecte Open-Meteo puis met à jour BigQuery."""
 
+    print("\n🌦️  ACTUALISATION OPEN-METEO")
     configurer_google_cloud()
     DOSSIER_OPENMETEO.mkdir(parents=True, exist_ok=True)
 
@@ -50,7 +51,7 @@ def main_openmeteo() -> None:
     date_a_recuperer = trouver_date_a_recuperer(len(communes))
 
     if date_a_recuperer is None:
-        print("Open-Meteo est déjà à jour.")
+        print("✅ Open-Meteo est déjà à jour.")
         return
 
     fichier_csv = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.csv"
@@ -59,19 +60,19 @@ def main_openmeteo() -> None:
     collecter_communes(communes, date_a_recuperer, fichier_csv)
     actualisation = creer_parquet(fichier_csv, fichier_parquet)
 
-    print("\nCOLLECTE TERMINÉE")
-    print(f"Communes : {len(actualisation)}/{len(communes)}")
-    print(f"Parquet : {fichier_parquet}")
+    print("\n✅ Collecte Open-Meteo terminée")
+    print(f"   Communes : {len(actualisation)}/{len(communes)}")
+    print(f"   Parquet : {fichier_parquet}")
 
     if len(actualisation) != len(communes):
         raise RuntimeError(
             f"Envoi impossible : {len(actualisation)} communes sur {len(communes)}."
         )
 
-    print("\nEnvoi vers Google Cloud...")
+    print("\n☁️  Envoi vers Google Cloud...")
     chemin_gcs = f"{DOSSIER_GCS_OPENMETEO}/{fichier_parquet.name}"
     adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    print(f"Fichier envoyé : {adresse_gcs}")
+    print(f"✅ Fichier envoyé : {adresse_gcs}")
     charger_parquet_bigquery(
         adresse_gcs,
         TABLE_LANDING_OPENMETEO,
@@ -83,33 +84,33 @@ def main_openmeteo() -> None:
 
 
 def main_incendie(mode_local: bool = False) -> None:
-    """Orchestre la collecte incendie et son chargement dans BigQuery."""
+    """Lance la collecte incendie puis met à jour BigQuery."""
 
+    print("\n🔥 ACTUALISATION MÉTÉO DES FORÊTS")
     api_key = lire_api_key()
-    configurer_google_cloud()
     DOSSIER_INCENDIE.mkdir(parents=True, exist_ok=True)
 
-    print("\nACTUALISATION MÉTÉO DES FORÊTS")
     donnees_api = recuperer_meteo_forets(api_key)
     donnees_incendie = preparer_donnees(donnees_api)
     fichier_parquet = enregistrer_parquet_incendie(donnees_incendie)
     reference_time = donnees_incendie["reference_time"].iloc[0]
 
-    print(f"Départements : {len(donnees_incendie)}/{NOMBRE_DEPARTEMENTS_ATTENDU}")
-    print(f"Publication : {reference_time}")
-    print(f"Parquet : {fichier_parquet}")
+    print(f"✅ Départements : {len(donnees_incendie)}/{NOMBRE_DEPARTEMENTS_ATTENDU}")
+    print(f"📅 Publication : {reference_time}")
+    print(f"📦 Parquet : {fichier_parquet}")
 
     if mode_local:
-        print("Mode local : aucun envoi vers Google Cloud.")
+        print("🧪 Mode local : aucun envoi vers Google Cloud.")
         return
 
-    print("\nEnvoi vers Google Cloud...")
+    configurer_google_cloud()
+    print("\n☁️  Envoi vers Google Cloud...")
     chemin_gcs = (
         f"{DOSSIER_GCS_INCENDIE}/"
         f"{reference_time:%Y/%m/%d}/{fichier_parquet.name}"
     )
     adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    print(f"Fichier envoyé : {adresse_gcs}")
+    print(f"✅ Fichier envoyé : {adresse_gcs}")
 
     client_bigquery = bigquery.Client(project=PROJET_GCP)
     preparer_datasets_bigquery(client_bigquery)
@@ -119,33 +120,51 @@ def main_incendie(mode_local: bool = False) -> None:
         NOMBRE_DEPARTEMENTS_ATTENDU,
     )
     fusionner_historique_incendie(client_bigquery)
-    print("\nActualisation incendie terminée.")
+    print("✅ Actualisation incendie terminée.")
+
+
+def lire_arguments() -> argparse.Namespace:
+    """Lit les options choisies dans le terminal."""
+
+    parser = argparse.ArgumentParser(description="Actualise les données Fourcasters.")
+    choix = parser.add_mutually_exclusive_group()
+    choix.add_argument(
+        "--openmeteo-only",
+        action="store_true",
+        help="Lance seulement la collecte Open-Meteo.",
+    )
+    choix.add_argument(
+        "--incendie-only",
+        action="store_true",
+        help="Lance seulement la collecte Météo-France.",
+    )
+    parser.add_argument(
+        "--local-only",
+        action="store_true",
+        help="Teste l'incendie sans envoyer de fichier dans Google Cloud.",
+    )
+    arguments = parser.parse_args()
+
+    if arguments.local_only and not arguments.incendie_only:
+        parser.error("--local-only doit être utilisé avec --incendie-only")
+
+    return arguments
 
 
 def main() -> None:
     """Lance les deux pipelines ou seulement celui demandé en argument."""
 
-    openmeteo_seul = "--openmeteo-only" in sys.argv
-    incendie_seul = "--incendie-only" in sys.argv
-    mode_local = "--local-only" in sys.argv
+    arguments = lire_arguments()
 
-    if openmeteo_seul and incendie_seul:
-        raise ValueError("Choisis un seul pipeline à lancer.")
+    print("\n🚀 ACTUALISATION FOURCASTERS")
 
-    if mode_local and not incendie_seul:
-        raise ValueError("Utilise --local-only avec --incendie-only.")
-
-    print("\nACTUALISATION FOURCASTERS")
-
-    if not incendie_seul:
-        print("\n1. Open-Meteo")
+    if not arguments.incendie_only:
         main_openmeteo()
 
-    if not openmeteo_seul:
-        print("\n2. Météo-France - danger incendie")
-        main_incendie(mode_local=mode_local)
+    if not arguments.openmeteo_only:
+        main_incendie(mode_local=arguments.local_only)
 
-    print("\nActualisation Fourcasters terminée.")
+    print("\n🎉 Actualisation Fourcasters terminée.")
 
 
 if __name__ == "__main__":

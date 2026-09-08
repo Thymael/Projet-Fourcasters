@@ -10,9 +10,7 @@ import pandas as pd
 import requests
 from google.cloud import bigquery
 
-from fourcasters_dbt.configuration import (
-    PROJET_GCP,
-)
+from fourcasters_dbt.configuration import DOSSIER_INCENDIE, PROJET_GCP
 
 
 URL_METEO_FRANCE = (
@@ -28,12 +26,23 @@ TABLE_HISTORIQUE = f"{PROJET_GCP}.{DATASET_RAW}.meteo_forets"
 NOMBRE_DEPARTEMENTS_ATTENDU = 96
 NOMBRE_TENTATIVES = 3
 TIMEOUT_API = 60
+PAUSE_APRES_ERREUR = 10
+PAUSE_QUOTA = 61
 COLONNES_ATTENDUES = [
     "reference_time",
     "dep_code",
     "dep_nom",
     "niveau_j1",
     "niveau_j2",
+]
+COLONNES_BIGQUERY = [
+    "reference_time",
+    "dep_code",
+    "nom_dep",
+    "niveau_j1",
+    "niveau_j2",
+    "row_hash",
+    "insere_a",
 ]
 
 
@@ -45,18 +54,18 @@ def lire_api_key() -> str:
     if not api_key:
         raise ValueError(
             "La variable METEOFRANCE_API_KEY est absente. "
-            "Charge le fichier .env avant de lancer le script."
+            "Ajoute-la dans le fichier .env."
         )
 
     return api_key
 
 
-def normaliser_code_departement(valeur) -> str:
+def normaliser_code_departement(valeur: object) -> str:
     """Ajoute le zéro initial et conserve les codes corses 2A et 2B."""
 
     code_departement = str(valeur).strip().upper()
 
-    if code_departement in ["2A", "2B"]:
+    if code_departement in {"2A", "2B"}:
         return code_departement
 
     if not code_departement.isdigit():
@@ -65,7 +74,7 @@ def normaliser_code_departement(valeur) -> str:
     return code_departement.zfill(2)
 
 
-def creer_row_hash(reference_time, code_departement: str) -> str:
+def creer_row_hash(reference_time: pd.Timestamp, code_departement: str) -> str:
     """Crée la clé unique d'une publication et d'un département."""
 
     texte_hash = f"{reference_time.isoformat()}|{code_departement}"
@@ -80,7 +89,7 @@ def recuperer_meteo_forets(api_key: str) -> list[dict]:
 
     for tentative in range(1, NOMBRE_TENTATIVES + 1):
         try:
-            print(f"Tentative API {tentative}/{NOMBRE_TENTATIVES}")
+            print(f"🔄 Tentative API {tentative}/{NOMBRE_TENTATIVES}")
             reponse = requests.get(
                 URL_METEO_FRANCE,
                 params=parametres,
@@ -92,8 +101,8 @@ def recuperer_meteo_forets(api_key: str) -> list[dict]:
                 if tentative == NOMBRE_TENTATIVES:
                     raise RuntimeError("Météo-France bloque toujours les requêtes.")
 
-                print("Limite API : pause de 61 secondes...")
-                time.sleep(61)
+                print(f"⏳ Limite API : pause de {PAUSE_QUOTA} secondes...")
+                time.sleep(PAUSE_QUOTA)
                 continue
 
             reponse.raise_for_status()
@@ -105,16 +114,16 @@ def recuperer_meteo_forets(api_key: str) -> list[dict]:
             return donnees_api
 
         except (requests.RequestException, ValueError) as erreur:
-            print(f"Échec de l'appel API : {erreur}")
+            print(f"❌ Échec de l'appel API : {erreur}")
 
             if tentative < NOMBRE_TENTATIVES:
-                print("Nouvel essai dans 10 secondes...")
-                time.sleep(10)
+                print(f"Nouvel essai dans {PAUSE_APRES_ERREUR} secondes...")
+                time.sleep(PAUSE_APRES_ERREUR)
 
     raise RuntimeError("L'API Météo-France reste inaccessible après trois essais.")
 
 
-def controler_colonnes(donnees: pd.DataFrame):
+def controler_colonnes(donnees: pd.DataFrame) -> None:
     """Vérifie que la réponse contient toutes les colonnes utiles."""
 
     colonnes_absentes = [
@@ -130,7 +139,7 @@ def controler_colonnes(donnees: pd.DataFrame):
         )
 
 
-def convertir_niveaux_danger(donnees: pd.DataFrame):
+def convertir_niveaux_danger(donnees: pd.DataFrame) -> None:
     """Convertit et contrôle les niveaux de danger J1 et J2."""
 
     for colonne in ["niveau_j1", "niveau_j2"]:
@@ -198,22 +207,31 @@ def enregistrer_parquet(donnees_incendie: pd.DataFrame) -> Path:
     return fichier_parquet
 
 
-def preparer_datasets_bigquery(client: bigquery.Client):
+def preparer_datasets_bigquery(client: bigquery.Client) -> None:
     """Crée les datasets Météo-France dans la même région qu'Open-Meteo."""
 
     dataset_openmeteo = client.get_dataset(f"{PROJET_GCP}.openmeteo_raw")
     localisation = dataset_openmeteo.location or "EU"
 
-    for nom_dataset in [DATASET_LANDING, DATASET_RAW]:
+    for nom_dataset in (DATASET_LANDING, DATASET_RAW):
         dataset = bigquery.Dataset(f"{PROJET_GCP}.{nom_dataset}")
         dataset.location = localisation
         client.create_dataset(dataset, exists_ok=True)
 
-    print(f"Datasets prêts dans la région {localisation}.")
+    print(f"✅ Datasets prêts dans la région {localisation}.")
 
 
-def fusionner_historique_bigquery(client: bigquery.Client):
+def fusionner_historique_bigquery(client: bigquery.Client) -> None:
     """Ajoute la publication à l'historique sans créer de doublon."""
+
+    colonnes_modifiees = [
+        colonne for colonne in COLONNES_BIGQUERY if colonne != "row_hash"
+    ]
+    mises_a_jour = ",\n        ".join(
+        f"{colonne} = source.{colonne}" for colonne in colonnes_modifiees
+    )
+    colonnes = ", ".join(COLONNES_BIGQUERY)
+    valeurs = ", ".join(f"source.{colonne}" for colonne in COLONNES_BIGQUERY)
 
     requete = f"""
     CREATE TABLE IF NOT EXISTS `{TABLE_HISTORIQUE}`
@@ -230,32 +248,11 @@ def fusionner_historique_bigquery(client: bigquery.Client):
 
     WHEN MATCHED THEN
       UPDATE SET
-        reference_time = source.reference_time,
-        dep_code = source.dep_code,
-        nom_dep = source.nom_dep,
-        niveau_j1 = source.niveau_j1,
-        niveau_j2 = source.niveau_j2,
-        insere_a = source.insere_a
+        {mises_a_jour}
 
     WHEN NOT MATCHED THEN
-      INSERT (
-        reference_time,
-        dep_code,
-        nom_dep,
-        niveau_j1,
-        niveau_j2,
-        row_hash,
-        insere_a
-      )
-      VALUES (
-        source.reference_time,
-        source.dep_code,
-        source.nom_dep,
-        source.niveau_j1,
-        source.niveau_j2,
-        source.row_hash,
-        source.insere_a
-      );
+      INSERT ({colonnes})
+      VALUES ({valeurs});
     """
     client.query(requete).result()
 
@@ -270,4 +267,4 @@ def fusionner_historique_bigquery(client: bigquery.Client):
     if resultat.nombre_lignes != resultat.nombre_cles:
         raise ValueError("La table historique contient des doublons.")
 
-    print(f"Historique mis à jour : {resultat.nombre_lignes} lignes.")
+    print(f"✅ Historique incendie mis à jour : {resultat.nombre_lignes} lignes.")

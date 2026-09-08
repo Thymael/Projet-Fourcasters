@@ -8,7 +8,7 @@ from fourcasters_dbt.configuration import NOM_BUCKET, PROJET_GCP
 
 
 def envoyer_parquet_gcs(fichier_parquet: Path, chemin_gcs: str) -> str:
-    """Envoie un fichier Parquet dans Cloud Storage et renvoie son adresse GCS."""
+    """Envoie un Parquet dans Cloud Storage et renvoie son adresse."""
 
     client = storage.Client(project=PROJET_GCP)
     bucket = client.bucket(NOM_BUCKET)
@@ -19,9 +19,10 @@ def envoyer_parquet_gcs(fichier_parquet: Path, chemin_gcs: str) -> str:
 
 
 def charger_parquet_bigquery(
-        adresse_gcs: str,
-        table_destination: str,
-        nombre_lignes_attendu: int):
+    adresse_gcs: str,
+    table_destination: str,
+    nombre_lignes_attendu: int,
+) -> None:
     """Remplace une table BigQuery par un Parquet et contrôle sa volumétrie."""
 
     client = bigquery.Client(project=PROJET_GCP)
@@ -45,4 +46,4 @@ def charger_parquet_bigquery(
             f"au lieu de {nombre_lignes_attendu}."
         )
 
-    print(f"Table chargée : {table_destination}")
+    print(f"✅ Table chargée : {table_destination}")

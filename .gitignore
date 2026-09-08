@@ -1,6 +1,7 @@
 # Python
 __pycache__/
 *.py[cod]
+.pytest_cache/
 build/
 dist/
 wheels/
@@ -21,6 +22,7 @@ logs/
 # Variables / secrets
 .env
 .env.*
+!.env.example
 profiles.yml
 
 # dbt

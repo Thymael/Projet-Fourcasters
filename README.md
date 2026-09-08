@@ -1,144 +1,120 @@
 # Fourcasters
 
-Projet de fin de formation Data Analyst réalisé à la Wild Code School.
+[![Actualisation quotidienne](https://github.com/Thymael/Projet-Fourcasters/actions/workflows/pipeline.yml/badge.svg)](https://github.com/Thymael/Projet-Fourcasters/actions/workflows/pipeline.yml)
 
-Fourcasters collecte des données météo françaises afin d'étudier les conditions
-associées aux canicules, aux fortes précipitations et au danger d'incendie. Les
-données sont préparées pour BigQuery, dbt, Power BI et de futurs modèles de
-Machine Learning.
+Projet de fin de formation Data Analyst à la Wild Code School.
 
-## Données utilisées
+Fourcasters rapproche la météo historique et le danger d'incendie en France
+métropolitaine. Le but est de préparer des données fiables pour l'EDA, Power BI
+et un futur modèle de Machine Learning.
 
-| Source | Contenu | Granularité |
+## Les données
+
+| Source | Contenu | Grain |
 |---|---|---|
-| Open-Meteo Historical (`ERA5-Seamless`) | Observations météo quotidiennes | 360 points × jour |
-| API Météo-France « Météo des forêts » | Danger incendie courant prévu à J1 et J2 | 96 départements × publication |
-| Archives Météo-France | Historique du danger incendie depuis 2024 | 96 départements × publication |
+| Open-Meteo (`ERA5-Seamless`) | Observations météo quotidiennes | 360 points par jour |
+| Météo-France, Météo des forêts | Danger prévu à J1 et J2 | 96 départements par publication |
+| Archives Météo-France | Danger incendie depuis 2024 | 96 départements par publication |
 
-Les niveaux Météo-France représentent un **danger prévu** et non des départs de
-feu observés.
+Le niveau Météo-France indique un **danger prévu**. Il ne correspond pas au
+nombre de feux réellement observés.
 
-## Pipeline
+## Fonctionnement
 
 ```mermaid
-flowchart TD
-    A[Open-Meteo] --> C[Scripts Python]
-    B[API et archives Météo-France] --> C
-    C --> D[Cloud Storage]
-    D --> E[BigQuery landing et raw]
-    E --> F[Modèles dbt]
-    F --> G[Power BI et ML]
+flowchart LR
+    A[APIs météo] --> B[Python]
+    B --> C[Cloud Storage]
+    C --> D[BigQuery]
+    D --> E[dbt]
+    E --> F[EDA, Power BI, ML]
 ```
 
-Principales tables :
+Le workflow GitHub Actions lance chaque jour :
 
-- `openmeteo_raw.meteo_journaliere` : historique météo ;
-- `meteofrance_raw.meteo_forets` : historique du danger incendie ;
-- `openmeteo_analyse.dim_commune` et `dim_date` : dimensions ;
-- `openmeteo_analyse.fact_meteo` : faits météo.
+1. la collecte Open-Meteo ;
+2. la collecte Météo-France ;
+3. le chargement dans BigQuery ;
+4. la construction et les tests des modèles dbt.
 
-Les modèles dbt `dim_departement` et `fact_danger_incendie` complètent le volet
-incendie.
+Les principales tables finales sont :
+
+- `dim_date`, `dim_commune` et `dim_departement` ;
+- `fact_meteo` ;
+- `fact_danger_incendie`.
 
 ## Organisation
 
 ```text
-Projet_Fourcasters/
-├── fourcasters/             # projet dbt
-├── scripts/                 # point d'entrée quotidien et import historique
-├── src/fourcasters_dbt/     # fonctions Python rangées par thème
-├── DOCUMENTATION/           # choix techniques et livrables
-├── data/                    # fichiers locaux générés, non versionnés
-├── pyproject.toml
-└── README.md
+fourcasters/              modèles et tests dbt
+scripts/                  scripts à lancer
+src/fourcasters_dbt/      fonctions Python du pipeline
+DOCUMENTATION/            contrôles et choix du projet
+.github/workflows/        automatisation quotidienne
 ```
 
-## Installation
+Le fichier `scripts/actualiser_fourcasters.py` contient les deux orchestrations
+principales. Les fonctions métier restent séparées dans `src/` pour garder des
+fichiers lisibles.
 
-Depuis la racine du dépôt :
+## Installation locale
+
+Prérequis : Python 3.12, `uv`, une clé GCP et une API Key Météo-France.
 
 ```bash
 uv sync
+cp .env.example .env
 ```
 
-Configurer ensuite :
+Renseigner ensuite les deux valeurs dans `.env`. Ce fichier et les clés GCP sont
+ignorés par Git.
 
-- la clé Google Cloud avec `GOOGLE_APPLICATION_CREDENTIALS` ;
-- l'API Key Météo-France dans `.env` :
+Pour lancer dbt en local, ajouter aussi un profil `fourcasters` dans
+`~/.dbt/profiles.yml` avec le projet BigQuery `fourcasters-openmeteo-loick`.
 
-```text
-METEOFRANCE_API_KEY=valeur_secrete
-```
-
-Les fichiers `.env`, `profiles.yml` et les clés GCP ne doivent jamais être
-ajoutés à Git.
-
-## Lancer les traitements
+## Commandes utiles
 
 ```bash
-# Actualisation complète : météo puis incendie
+# Pipeline complet
 uv run python scripts/actualiser_fourcasters.py
 
-# Lancer seulement Open-Meteo si besoin
+# Une seule source
 uv run python scripts/actualiser_fourcasters.py --openmeteo-only
-
-# Lancer seulement l'incendie
 uv run python scripts/actualiser_fourcasters.py --incendie-only
 
-# Tester l'incendie sans envoi dans Google Cloud
-set -a
-source .env
-set +a
+# Test local de l'API incendie, sans envoi dans GCP
 uv run python scripts/actualiser_fourcasters.py --incendie-only --local-only
 
-# Construction et tests dbt
+# Modèles et tests dbt
 uv run dbt build --project-dir fourcasters
 ```
 
-Le pipeline contrôle notamment la volumétrie attendue, les doublons, les
-colonnes obligatoires et les clés `row_hash`. Une collecte incomplète bloque le
-chargement suivant.
-
-Les fonctions `main_openmeteo()` et `main_incendie()` sont regroupées dans
-`scripts/actualiser_fourcasters.py`. Les modules du dossier `src/` contiennent
-uniquement les fonctions métier utilisées par ces deux orchestrations.
-
-## Importer l'historique incendie
-
-Météo-France fournit des fichiers annuels depuis 2024. Cet import est ponctuel :
-il ne fait pas partie du workflow quotidien et ne demande pas d'API Key.
+L'historique Météo-France est un import ponctuel :
 
 ```bash
-# Vérifier le téléchargement et créer le Parquet local
 uv run python scripts/importer_archives_meteofrance.py --local-only
-
-# Charger toutes les archives disponibles dans BigQuery
 uv run python scripts/importer_archives_meteofrance.py
-
-# Importer seulement certaines années si besoin
-uv run python scripts/importer_archives_meteofrance.py --annees 2024 2025
 ```
 
-Le script harmonise les différents noms de colonnes utilisés selon les années,
-contrôle les 96 départements, puis réutilise le `MERGE` de la collecte
-quotidienne. Il peut donc être relancé sans créer de doublon.
+## Contrôles
 
-Après l'import, reconstruire les tables analytiques :
+Le pipeline vérifie les colonnes obligatoires, les volumes attendus et les
+doublons avant de mettre à jour l'historique. Les tests dbt contrôlent ensuite
+les clés, les valeurs et les relations entre les tables.
 
-```bash
-uv run dbt build --project-dir fourcasters
-```
+Les requêtes de vérification manuelle sont dans
+[`DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql`](DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql).
+Les conventions de code et les risques du projet sont résumés dans les deux
+autres fichiers du dossier `DOCUMENTATION/`.
 
-## Documentation
+## État du projet
 
-- `DOCUMENTATION/REGLES_CLEAN_CODE.md` : règles de développement et méthode de
-  refactorisation ;
-- `DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql` : contrôles principaux ;
-- la documentation dbt peut être générée avec
-  `uv run dbt docs generate --project-dir fourcasters`.
+- ingestion et actualisation quotidienne : opérationnelles ;
+- modèle en étoile dbt : opérationnel ;
+- EDA, rapport Power BI et préparation ML : prochaines étapes.
 
 ## Auteur
 
 **MARTIN Loïck**
 
-Projet de fin de formation Data Analyst — Wild Code School
+Projet Data Analyst — Wild Code School

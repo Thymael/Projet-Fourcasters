@@ -1,26 +1,19 @@
 [project]
 name = "fourcasters-dbt"
 version = "0.1.0"
-description = "Pipeline de transformation des données Open-Meteo du projet Fourcasters"
+description = "Pipeline météo et danger incendie du projet Fourcasters"
 readme = "README.md"
 authors = [
     { name = "MARTIN Loïck" }
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "adjusttext>=1.4.0",
-    "codecarbon>=3.3.0",
     "dbt-bigquery>=1.12.0",
-    "geopandas>=1.1.4",
-    "google-auth>=2.57.0",
     "google-cloud-bigquery>=3.44.0",
     "google-cloud-storage>=3.1.1",
-    "matplotlib>=3.11.1",
     "pandas>=3.0.5",
     "pyarrow>=25.0.1",
-    "pyogrio>=0.13.0",
-    "python-dotenv",
-    "pyyaml>=6.0.3",
+    "python-dotenv>=1.1.0",
     "requests>=2.34.2",
 ]
 

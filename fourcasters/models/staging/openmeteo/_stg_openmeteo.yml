@@ -1,26 +1,12 @@
 version: 2
 
 models:
-
   - name: stg_meteo_journaliere
-    description: >
-      Données météorologiques journalières Open-Meteo nettoyées
-      et renommées pour leur utilisation dans les modèles analytiques.
-
+    description: "Observations Open-Meteo nettoyées et renommées."
     columns:
-
       - name: row_hash
-        description: "Identifiant technique unique de la ligne météorologique."
-        data_tests:
-          - not_null
-          - unique
-
+        data_tests: [not_null, unique]
       - name: date
-        description: "Date de l'observation météorologique."
-        data_tests:
-          - not_null
-
+        data_tests: [not_null]
       - name: code_insee
-        description: "Code INSEE utilisé pour rattacher l'observation au référentiel communal."
-        data_tests:
-          - not_null
+        data_tests: [not_null]

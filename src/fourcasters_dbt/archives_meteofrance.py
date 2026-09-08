@@ -9,8 +9,15 @@ import pandas as pd
 import requests
 from google.cloud import bigquery
 
-from fourcasters_dbt.configuration import DOSSIER_INCENDIE, PROJET_GCP, configurer_google_cloud
-from fourcasters_dbt.google_cloud import charger_parquet_bigquery, envoyer_parquet_gcs
+from fourcasters_dbt.configuration import (
+    DOSSIER_INCENDIE,
+    PROJET_GCP,
+    configurer_google_cloud,
+)
+from fourcasters_dbt.google_cloud import (
+    charger_parquet_bigquery,
+    envoyer_parquet_gcs,
+)
 from fourcasters_dbt.incendie import (
     DOSSIER_GCS,
     NOMBRE_DEPARTEMENTS_ATTENDU,
@@ -44,7 +51,7 @@ URL_ARCHIVE = (
 TIMEOUT_TELECHARGEMENT = 120
 
 
-def lire_arguments():
+def lire_arguments() -> argparse.Namespace:
     """Lit les années demandées et le mode d'exécution."""
 
     parser = argparse.ArgumentParser(
@@ -70,7 +77,7 @@ def lire_arguments():
     return parser.parse_args()
 
 
-def controler_annees(annees: list[int]):
+def controler_annees(annees: list[int]) -> None:
     """Vérifie que les années demandées existent dans les archives."""
 
     annee_actuelle = datetime.now(timezone.utc).year
@@ -91,7 +98,7 @@ def telecharger_archive(annee: int) -> pd.DataFrame:
     """Télécharge et lit le fichier CSV compressé d'une année."""
 
     url = URL_ARCHIVE.format(annee=annee)
-    print(f"Téléchargement de l'archive {annee}...")
+    print(f"⬇️  Téléchargement de l'année {annee}...")
 
     reponse = requests.get(url, timeout=TIMEOUT_TELECHARGEMENT)
     reponse.raise_for_status()
@@ -107,7 +114,7 @@ def telecharger_archive(annee: int) -> pd.DataFrame:
     donnees = donnees.rename(columns=RENOMMAGE_COLONNES)
     donnees["annee_archive"] = annee
 
-    print(f"Archive {annee} : {len(donnees)} lignes récupérées.")
+    print(f"✅ Année {annee} : {len(donnees)} lignes récupérées.")
     return donnees
 
 
@@ -144,7 +151,9 @@ def preparer_archives(donnees: pd.DataFrame) -> pd.DataFrame:
         archives["reference_time"].dt.year != archives["annee_archive"]
     ]
     if not mauvaise_annee.empty:
-        raise ValueError("Une publication n'appartient pas à la bonne archive annuelle.")
+        raise ValueError(
+            "Une publication n'appartient pas à la bonne archive annuelle."
+        )
 
     doublons = archives.duplicated(["reference_time", "dep_code"])
     if doublons.any():
@@ -155,7 +164,9 @@ def preparer_archives(donnees: pd.DataFrame) -> pd.DataFrame:
         nombres_departements != NOMBRE_DEPARTEMENTS_ATTENDU
     ]
     if not publications_incompletes.empty:
-        dates = publications_incompletes.index.strftime("%Y-%m-%d %H:%M:%S").tolist()
+        dates = publications_incompletes.index.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ).tolist()
         raise ValueError(
             "Publications incomplètes dans les archives : " + ", ".join(dates[:10])
         )
@@ -182,7 +193,7 @@ def enregistrer_parquet(donnees: pd.DataFrame, annees: list[int]) -> Path:
     return fichier
 
 
-def importer_archives():
+def importer_archives() -> None:
     """Télécharge, contrôle et charge les archives dans BigQuery."""
 
     arguments = lire_arguments()
@@ -190,28 +201,28 @@ def importer_archives():
     controler_annees(annees)
 
     DOSSIER_INCENDIE.mkdir(parents=True, exist_ok=True)
-    configurer_google_cloud()
 
-    print("\nIMPORT DES ARCHIVES MÉTÉO DES FORÊTS")
+    print("\n🔥 IMPORT DE L'HISTORIQUE MÉTÉO DES FORÊTS")
     archives_telechargees = [telecharger_archive(annee) for annee in annees]
     donnees = preparer_archives(pd.concat(archives_telechargees, ignore_index=True))
     fichier_parquet = enregistrer_parquet(donnees, annees)
 
-    print(f"Années : {', '.join(str(annee) for annee in annees)}")
-    print(f"Publications : {donnees['reference_time'].nunique()}")
-    print(f"Lignes : {len(donnees)}")
-    print(f"Parquet : {fichier_parquet}")
+    print(f"📅 Années : {', '.join(str(annee) for annee in annees)}")
+    print(f"📄 Publications : {donnees['reference_time'].nunique()}")
+    print(f"📊 Lignes : {len(donnees)}")
+    print(f"📦 Parquet : {fichier_parquet}")
 
     if arguments.local_only:
-        print("Mode local : aucun envoi vers Google Cloud.")
+        print("🧪 Mode local : aucun envoi vers Google Cloud.")
         return
 
+    configurer_google_cloud()
     chemin_gcs = f"{DOSSIER_GCS}/archives/{fichier_parquet.name}"
     adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    print(f"Fichier envoyé : {adresse_gcs}")
+    print(f"☁️  Fichier envoyé : {adresse_gcs}")
 
     client_bigquery = bigquery.Client(project=PROJET_GCP)
     preparer_datasets_bigquery(client_bigquery)
     charger_parquet_bigquery(adresse_gcs, TABLE_LANDING, len(donnees))
     fusionner_historique_bigquery(client_bigquery)
-    print("\nImport des archives terminé.")
+    print("\n🎉 Import de l'historique terminé.")
