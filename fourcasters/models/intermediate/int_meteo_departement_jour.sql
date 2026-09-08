@@ -1,7 +1,7 @@
 /* Une ligne météo par département et par jour.
    Cette table évite de refaire la même agrégation dans Power BI et dans le ML. */
 SELECT
-    date,
+    DATE(date) AS date,
     numero_departement,
     ANY_VALUE(departement) AS departement,
     ANY_VALUE(region) AS region,
@@ -18,4 +18,4 @@ SELECT
     MAX(deficit_pression_vapeur_maximal) AS deficit_pression_vapeur_maximal
 
 FROM {{ ref('int_meteo_communes') }}
-GROUP BY date, numero_departement
+GROUP BY DATE(date), numero_departement
