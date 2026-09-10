@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: actualisation-fourcasters
+  cancel-in-progress: false
+
 jobs:
   actualisation:
     runs-on: ubuntu-latest
@@ -29,35 +33,23 @@ jobs:
           enable-cache: true
 
       - name: Installer les dépendances
-        run: uv sync --frozen
+        run: uv sync --frozen --no-dev
 
       - name: Actualiser Open-Meteo
         run: |
-          uv run python -u scripts/actualiser_fourcasters.py --openmeteo-only
+          uv run --no-sync python -u scripts/actualiser_fourcasters.py --openmeteo-only
 
       - name: Actualiser Météo-France
         env:
           METEOFRANCE_API_KEY: ${{ secrets.METEOFRANCE_API_KEY }}
         run: |
-          uv run python -u scripts/actualiser_fourcasters.py --incendie-only
+          uv run --no-sync python -u scripts/actualiser_fourcasters.py --incendie-only
 
       - name: Configurer dbt
         run: |
           mkdir -p ~/.dbt
-
-          cat > ~/.dbt/profiles.yml <<'EOF'
-          fourcasters:
-            target: dev
-            outputs:
-              dev:
-                type: bigquery
-                method: oauth
-                project: fourcasters-openmeteo-loick
-                dataset: openmeteo_analyse
-                threads: 4
-                location: US
-          EOF
+          cp fourcasters/profiles.example.yml ~/.dbt/profiles.yml
 
       - name: Construire et tester les modèles dbt
         run: |
-          uv run dbt build --project-dir fourcasters
+          uv run --no-sync dbt build --project-dir fourcasters

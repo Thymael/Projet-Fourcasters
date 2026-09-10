@@ -1,48 +1,42 @@
-# EDA, Power BI et ML
+# Analyse, Power BI et ML
 
-## Tables préparées
-
-| Table | Grain | Utilisation |
+| Table | Une ligne représente | Utilisation |
 |---|---|---|
-| `int_meteo_departement_jour` | département + jour | base commune pour les agrégations |
-| `pbi_risque_incendie` | publication + département + échéance | rapport Power BI |
-| `ml_features_incendie` | date de publication + département | variables d'un futur modèle |
-| `ml_train_incendie` | publication + département + échéance | apprentissage J1/J2 |
+| `int_meteo_departement_jour` | un département et un jour | météo agrégée |
+| `pbi_risque_incendie` | un horodatage de bulletin, un département et J1/J2 | comparaison descriptive |
+| `ml_features_incendie` | une date de publication et un département | météo décalée de sept jours |
+| `ml_train_incendie` | une date de publication, un département et J1/J2 | apprentissage du dernier bulletin du jour |
 
-`pbi_risque_incendie` associe le danger prévu à la météo disponible à la date
-de publication. La jointure ne se fait donc pas sur la date J1 ou J2 : cela
-évite de présenter une météo future comme une information connue au moment de
-la prévision.
+## Lire les dates
 
-## Power BI
+`date_publication` est le jour du bulletin. `date_prevision` est le jour concerné
+par son niveau de danger. Dans le PBIX fourni, le calendrier filtre les faits
+incendie sur **date_prevision**.
 
-La table `pbi_risque_incendie` peut être importée comme table principale.
-Ajouter ensuite :
+La table `pbi_risque_incendie` associe chaque bulletin à la dernière journée
+météo présente en base, antérieure ou égale à sa date de publication. Elle
+conserve `date_meteo_utilisee` et `retard_meteo_jours` pour montrer le décalage.
+C'est un rapprochement descriptif avec l'historique disponible aujourd'hui,
+pas une preuve de ce qui était connu lors du bulletin.
 
-- une relation sur `date_publication` vers `dim_date.date` ;
-- une relation sur `numero_departement` vers `dim_departement.numero_departement`.
+Pour l'apprentissage, les tables ML utilisent un recul séparé de sept jours.
+La règle de `pbi_risque_incendie` ne doit pas servir à construire leurs variables.
 
-Quelques indicateurs simples à créer : nombre de publications, niveau moyen de
-danger, part des niveaux 3 et 4, et taux de lignes avec météo disponible.
+## Lire la pluie
 
-## Machine Learning
+Dans la table départementale, `precipitations_totales` est la somme des points.
+Cette colonne historique est conservée pour la compatibilité, mais ce n'est
+pas une hauteur de pluie représentative du département.
 
-`ml_features_incendie` contient notamment les moyennes, maxima et cumuls météo
-sur les sept derniers jours connus avant la publication. Le niveau de danger
-n'est pas copié dans cette table pour éviter une fuite de cible.
+Pour comparer les départements, utiliser `precipitations_moyennes`. Pour un
+cumul dans le temps, additionner ces moyennes journalières et vérifier la
+période couverte. Le notebook et le ML suivent cette distinction.
 
-`ml_train_incendie` ajoute ensuite la cible `cible_niveau_danger` issue de
-Météo-France, avec l'échéance `J1` ou `J2`. Le projet cherche donc à reproduire
-la classe de danger publiée par Météo-France, et non à prévoir si un incendie
-réel va effectivement se déclarer.
+## Notebook
 
-Pour le ML, on pourra commencer par un modèle de classification à quatre
-classes. L'échéance peut être utilisée comme variable, ou bien on peut
-entraîner un modèle séparé pour J1 et pour J2.
+[`01_eda_fourcasters.ipynb`](../notebooks/01_eda_fourcasters.ipynb) contrôle les
+volumes, les périodes, la couverture, les valeurs manquantes et la répartition
+du danger. Les graphiques et classements restent descriptifs. Aucun résultat
+n'est prérempli : il faut exécuter le notebook avec les accès BigQuery.
 
-## EDA
-
-Le notebook [`notebooks/01_eda_fourcasters.ipynb`](../notebooks/01_eda_fourcasters.ipynb)
-contrôle les volumes, les périodes, les valeurs manquantes et la répartition
-des niveaux de danger. Il sert de point de départ avant de construire les
-graphiques du rapport Power BI.
+Voir aussi le [modèle Power BI](MODELE_POWERBI.md) et la [méthode ML](ML_INCENDIE.md).

@@ -1,16 +1,20 @@
 """Collecte quotidienne des données Open-Meteo pour Fourcasters."""
 
 import hashlib
+import logging
 import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
 from google.cloud import bigquery
 
 from fourcasters_dbt.configuration import PROJET_GCP
+from fourcasters_dbt.google_cloud import fusionner_historique
+from fourcasters_dbt.http import recuperer_reponse
+
+logger = logging.getLogger(__name__)
 
 
 URL_OPENMETEO = "https://archive-api.open-meteo.com/v1/archive"
@@ -22,9 +26,6 @@ DATE_DEBUT_ACTUALISATION = date(2026, 8, 1)
 RETARD_ERA5_JOURS = 6
 TAILLE_LOT = 10
 PAUSE_ENTRE_LOTS = 10
-PAUSE_APRES_ERREUR = 10
-PAUSE_QUOTA = 61
-NOMBRE_TENTATIVES = 3
 TIMEOUT_API = 120
 
 VARIABLES_METEO = [
@@ -68,39 +69,38 @@ COLONNES_BIGQUERY = [
 
 
 def trouver_date_a_recuperer(nombre_communes: int) -> str | None:
-    """Renvoie la journée suivante ou reprend une journée incomplète."""
+    """Cherche la première journée absente ou incomplète depuis août 2026."""
 
     date_maximum = (
         datetime.now(ZoneInfo("Europe/Paris")).date()
         - timedelta(days=RETARD_ERA5_JOURS)
     )
     requete = f"""
-        SELECT
-            DATE(time) AS jour,
-            COUNT(DISTINCT code_insee) AS nombre_communes
-        FROM `{TABLE_HISTORIQUE}`
-        WHERE DATE(time) >= '{DATE_DEBUT_ACTUALISATION.isoformat()}'
-        GROUP BY jour
-        ORDER BY jour DESC
+        WITH calendrier AS (
+            SELECT jour FROM UNNEST(GENERATE_DATE_ARRAY(
+                DATE('{DATE_DEBUT_ACTUALISATION}'), DATE('{date_maximum}')
+            )) AS jour
+        ),
+        volumes AS (
+            SELECT DATE(time) AS jour, COUNT(*) AS lignes,
+                COUNT(DISTINCT code_insee) AS communes
+            FROM `{TABLE_HISTORIQUE}`
+            WHERE DATE(time) BETWEEN '{DATE_DEBUT_ACTUALISATION}' AND '{date_maximum}'
+            GROUP BY jour
+        )
+        SELECT calendrier.jour
+        FROM calendrier LEFT JOIN volumes USING (jour)
+        WHERE COALESCE(lignes, 0) != {nombre_communes}
+            OR COALESCE(communes, 0) != {nombre_communes}
+        ORDER BY calendrier.jour
         LIMIT 1
     """
-
     client = bigquery.Client(project=PROJET_GCP)
     resultats = list(client.query(requete).result())
-
     if not resultats:
-        date_demandee = DATE_DEBUT_ACTUALISATION
-    elif resultats[0].nombre_communes < nombre_communes:
-        date_demandee = resultats[0].jour
-    else:
-        date_demandee = resultats[0].jour + timedelta(days=1)
-
-    if date_demandee > date_maximum:
-        print(
-            "⏳ Aucune nouvelle journée Open-Meteo disponible. "
-            f"Dernière date autorisée : {date_maximum}."
-        )
+        logger.info("✅ Historique complet jusqu'au %s.", date_maximum)
         return None
+    date_demandee = resultats[0].jour
 
     return date_demandee.isoformat()
 
@@ -118,13 +118,17 @@ def preparer_commune(
 ) -> pd.DataFrame:
     """Transforme la réponse d'une commune en une ligne prête pour BigQuery."""
 
-    if "daily" not in donnees_commune:
-        raise ValueError(f"Aucune donnée reçue pour {commune['commune']}.")
-
-    meteo_commune = pd.DataFrame(donnees_commune["daily"])
-
+    meteo_commune = pd.DataFrame(donnees_commune.get("daily", {}))
+    colonnes_absentes = set(["time", *VARIABLES_METEO]) - set(meteo_commune.columns)
+    if colonnes_absentes:
+        raise ValueError(f"Colonnes météo absentes : {sorted(colonnes_absentes)}")
     if len(meteo_commune) != 1:
-        raise ValueError(f"Une seule ligne était attendue pour {commune['commune']}.")
+        raise ValueError(f"Une ligne attendue pour {commune['commune']}.")
+    jour_recu = pd.to_datetime(meteo_commune["time"], utc=True, errors="raise")
+    if jour_recu.isna().any() or not (
+        jour_recu.dt.date == date.fromisoformat(date_a_recuperer)
+    ).all():
+        raise ValueError(f"La réponse ne correspond pas au {date_a_recuperer}.")
 
     code_insee = creer_cle_commune(commune)
     meteo_commune["code_insee"] = code_insee
@@ -139,7 +143,7 @@ def preparer_commune(
 
     for variable in VARIABLES_METEO:
         meteo_commune[variable] = pd.to_numeric(
-            meteo_commune[variable], errors="coerce"
+            meteo_commune[variable], errors="raise"
         ).astype("float64")
 
     return meteo_commune
@@ -172,6 +176,8 @@ def preparer_reponse_lot(
     # Pour une seule commune, l'API renvoie un objet au lieu d'une liste.
     if isinstance(donnees_api, dict):
         donnees_api = [donnees_api]
+    if not isinstance(donnees_api, list) or communes.empty:
+        raise ValueError("Réponse ou lot Open-Meteo vide ou incorrect.")
 
     if len(donnees_api) != len(communes):
         raise ValueError("Le nombre de réponses ne correspond pas au lot envoyé.")
@@ -193,49 +199,20 @@ def preparer_reponse_lot(
 def recuperer_lot(
     communes: pd.DataFrame,
     date_a_recuperer: str,
-) -> pd.DataFrame | None:
-    """Récupère un lot de communes avec une seule requête Open-Meteo."""
-
-    parametres = construire_parametres_api(communes, date_a_recuperer)
-
-    for tentative in range(1, NOMBRE_TENTATIVES + 1):
-        try:
-            print(f"   🔄 Tentative {tentative}/{NOMBRE_TENTATIVES}")
-            reponse = requests.get(
-                URL_OPENMETEO,
-                params=parametres,
-                timeout=TIMEOUT_API,
-            )
-
-            if reponse.status_code == 429:
-                if tentative == NOMBRE_TENTATIVES:
-                    raise RuntimeError("Open-Meteo bloque toujours les requêtes.")
-
-                print(f"   ⏳ Limite API : pause de {PAUSE_QUOTA} secondes...")
-                time.sleep(PAUSE_QUOTA)
-                continue
-
-            reponse.raise_for_status()
-            return preparer_reponse_lot(
-                reponse.json(),
-                communes,
-                date_a_recuperer,
-            )
-
-        except (requests.RequestException, ValueError, KeyError) as erreur:
-            print(f"   ❌ Échec : {erreur}")
-
-            if tentative < NOMBRE_TENTATIVES:
-                print(f"   Nouvel essai dans {PAUSE_APRES_ERREUR} secondes...")
-                time.sleep(PAUSE_APRES_ERREUR)
-
-    return None
+) -> pd.DataFrame:
+    """Récupère un lot et refuse une réponse mal formée."""
+    reponse = recuperer_reponse(
+        URL_OPENMETEO,
+        params=construire_parametres_api(communes, date_a_recuperer),
+        timeout=TIMEOUT_API,
+    )
+    return preparer_reponse_lot(reponse.json(), communes, date_a_recuperer)
 
 
 def lire_communes_deja_recuperees(fichier_csv: Path) -> set[str]:
     """Lit le CSV de reprise et renvoie les communes déjà collectées."""
 
-    if not fichier_csv.exists():
+    if not fichier_csv.exists() or fichier_csv.stat().st_size == 0:
         return set()
 
     donnees_existantes = pd.read_csv(
@@ -270,28 +247,24 @@ def collecter_communes(
     )
     departs_lots = range(0, len(communes_manquantes), TAILLE_LOT)
 
-    print(f"📅 Date : {date_a_recuperer}")
-    print(f"📍 Communes déjà récupérées : {len(communes_recuperees)}")
-    print(f"📦 Lots à traiter : {len(departs_lots)}")
+    logger.info("📅 Date : %s", date_a_recuperer)
+    logger.info("Communes déjà récupérées : %s", len(communes_recuperees))
+    logger.info("Lots à traiter : %s", len(departs_lots))
 
     for numero_lot, debut in enumerate(departs_lots, start=1):
         lot = communes_manquantes.iloc[debut:debut + TAILLE_LOT]
-        print(f"\n📦 Lot {numero_lot}/{len(departs_lots)} - {len(lot)} communes")
+        logger.info("Lot %s/%s : %s communes", numero_lot, len(departs_lots), len(lot))
         meteo_lot = recuperer_lot(lot, date_a_recuperer)
-
-        if meteo_lot is None:
-            print("   ❌ Lot abandonné après trois tentatives.")
-            continue
 
         # La sauvegarde immédiate permet de reprendre après une interruption.
         meteo_lot.to_csv(
             fichier_csv,
             mode="a",
-            header=not fichier_csv.exists(),
+            header=not fichier_csv.exists() or fichier_csv.stat().st_size == 0,
             index=False,
             encoding="utf-8-sig",
         )
-        print(f"   ✅ {len(meteo_lot)} communes ajoutées au CSV.")
+        logger.info("%s communes sauvegardées dans le CSV.", len(meteo_lot))
 
         if numero_lot < len(departs_lots):
             time.sleep(PAUSE_ENTRE_LOTS)
@@ -300,6 +273,8 @@ def collecter_communes(
 def creer_parquet(
     fichier_csv: Path,
     fichier_parquet: Path,
+    communes: pd.DataFrame,
+    date_a_recuperer: str,
 ) -> pd.DataFrame:
     """Nettoie le CSV de reprise puis crée le Parquet à charger."""
 
@@ -310,7 +285,9 @@ def creer_parquet(
         fichier_csv,
         dtype={"numero_departement": "string", "code_insee": "string"},
     )
-    actualisation = actualisation.drop_duplicates("row_hash", keep="last")
+    actualisation = actualisation[COLONNES_BIGQUERY].copy()
+    actualisation["code_insee"] = actualisation["code_insee"].str.strip()
+    actualisation = actualisation.drop_duplicates(["time", "code_insee"], keep="last")
     actualisation["time"] = pd.to_datetime(actualisation["time"], utc=True)
     actualisation["insere_a"] = pd.to_datetime(
         actualisation["insere_a"], utc=True
@@ -318,45 +295,33 @@ def creer_parquet(
 
     for variable in VARIABLES_METEO:
         actualisation[variable] = pd.to_numeric(
-            actualisation[variable], errors="coerce"
+            actualisation[variable], errors="raise"
         ).astype("float64")
 
+    if set(actualisation["code_insee"]) != set(communes["code_insee"]):
+        raise ValueError("La collecte ne contient pas exactement les communes du référentiel.")
+    if len(actualisation) != len(communes):
+        raise ValueError("Une seule ligne par commune est attendue.")
+    if actualisation["time"].isna().any() or not (
+        actualisation["time"].dt.date == date.fromisoformat(date_a_recuperer)
+    ).all():
+        raise ValueError("Le CSV de reprise contient une autre date.")
+    if actualisation["insere_a"].isna().any():
+        raise ValueError("Une date de collecte est manquante.")
+    if actualisation[VARIABLES_METEO].isin([float("inf"), -float("inf")]).any().any():
+        raise ValueError("Une valeur météo est infinie.")
+    hashes_attendus = actualisation["code_insee"].map(
+        lambda code: hashlib.sha256(f"{date_a_recuperer}|{code}".encode()).hexdigest()
+    )
+    if not actualisation["row_hash"].eq(hashes_attendus).all():
+        raise ValueError("Les clés du CSV ne correspondent pas à ses dates et communes.")
     actualisation.to_parquet(fichier_parquet, index=False)
     return actualisation
 
 
 def fusionner_historique_bigquery(client: bigquery.Client) -> None:
-    """Ajoute la journée dans l'historique sans créer de doublon."""
-
-    colonnes_modifiees = [
-        colonne for colonne in COLONNES_BIGQUERY if colonne != "row_hash"
-    ]
-    mises_a_jour = ",\n        ".join(
-        f"{colonne} = source.{colonne}" for colonne in colonnes_modifiees
+    """Ajoute la journée validée à l'historique."""
+    fusionner_historique(
+        client, TABLE_LANDING, TABLE_HISTORIQUE, COLONNES_BIGQUERY,
+        "time", "code_insee",
     )
-    colonnes = ", ".join(COLONNES_BIGQUERY)
-    valeurs = ", ".join(f"source.{colonne}" for colonne in COLONNES_BIGQUERY)
-
-    requete = f"""
-    CREATE TABLE IF NOT EXISTS `{TABLE_HISTORIQUE}`
-    PARTITION BY DATE(time)
-    CLUSTER BY code_insee
-    AS
-    SELECT *
-    FROM `{TABLE_LANDING}`
-    WHERE FALSE;
-
-    MERGE `{TABLE_HISTORIQUE}` AS cible
-    USING `{TABLE_LANDING}` AS source
-      ON cible.row_hash = source.row_hash
-
-    WHEN MATCHED THEN
-      UPDATE SET
-        {mises_a_jour}
-
-    WHEN NOT MATCHED THEN
-      INSERT ({colonnes})
-      VALUES ({valeurs});
-    """
-    client.query(requete).result()
-    print(f"✅ Historique météo mis à jour : {TABLE_HISTORIQUE}")

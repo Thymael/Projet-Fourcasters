@@ -16,12 +16,20 @@ FROM `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere`;
 
 -- CTRL 02 : journées Open-Meteo incomplètes
 -- Attendu : aucune ligne.
+WITH calendrier AS (
+    SELECT jour FROM UNNEST(GENERATE_DATE_ARRAY(
+        (SELECT MIN(DATE(time)) FROM `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere`),
+        (SELECT MAX(DATE(time)) FROM `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere`)
+    )) AS jour
+)
 SELECT
-    DATE(time) AS date_observation,
-    COUNT(*) AS lignes,
-    COUNT(DISTINCT row_hash) AS cles_uniques,
-    COUNT(DISTINCT code_insee) AS communes
-FROM `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere`
+    calendrier.jour AS date_observation,
+    COUNT(meteo.code_insee) AS lignes,
+    COUNT(DISTINCT meteo.row_hash) AS cles_uniques,
+    COUNT(DISTINCT meteo.code_insee) AS communes
+FROM calendrier
+LEFT JOIN `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere` AS meteo
+    ON calendrier.jour = DATE(meteo.time)
 GROUP BY date_observation
 HAVING lignes != 360 OR cles_uniques != 360 OR communes != 360
 ORDER BY date_observation DESC;
@@ -108,26 +116,24 @@ SELECT
         AS meteofrance_synchronise;
 
 
--- CTRL 08 : couverture de la jointure météo / danger incendie
--- Le taux n'est pas toujours de 100 %, car ERA5 est disponible plus tard.
-WITH meteo_par_departement AS (
-    SELECT DISTINCT
-        meteo.date,
-        commune.numero_departement
-    FROM `fourcasters-openmeteo-loick.openmeteo_analyse.fact_meteo` AS meteo
-    INNER JOIN `fourcasters-openmeteo-loick.openmeteo_analyse.dim_commune` AS commune
-        ON meteo.code_insee = commune.code_insee
-)
-
+-- CTRL 08 : météo réellement associée aux bulletins dans la table Power BI
+-- Ce contrôle porte sur la dernière météo présente au plus tard à la publication.
 SELECT
     COUNT(*) AS lignes_incendie,
-    COUNTIF(meteo.date IS NOT NULL) AS lignes_avec_meteo,
-    COUNTIF(meteo.date IS NULL) AS lignes_sans_meteo,
+    COUNTIF(meteo_disponible) AS lignes_avec_meteo,
+    COUNTIF(NOT meteo_disponible) AS lignes_sans_meteo,
+    MAX(retard_meteo_jours) AS retard_maximum,
     ROUND(
-        100 * SAFE_DIVIDE(COUNTIF(meteo.date IS NOT NULL), COUNT(*)),
+        100 * SAFE_DIVIDE(COUNTIF(meteo_disponible), COUNT(*)),
         2
     ) AS taux_jointure
-FROM `fourcasters-openmeteo-loick.openmeteo_analyse.fact_danger_incendie` AS incendie
-LEFT JOIN meteo_par_departement AS meteo
-    ON incendie.date_prevision = meteo.date
-    AND incendie.numero_departement = meteo.numero_departement;
+FROM `fourcasters-openmeteo-loick.openmeteo_analyse.pbi_risque_incendie`;
+
+
+-- CTRL 09 : séparation entre variables ML complètes et incomplètes
+SELECT
+    COUNT(*) AS lignes,
+    COUNT(DISTINCT id_apprentissage) AS cles_uniques,
+    COUNTIF(meteo_disponible) AS lignes_exploitables,
+    COUNTIF(NOT meteo_disponible) AS lignes_sans_fenetre_complete
+FROM `fourcasters-openmeteo-loick.openmeteo_analyse.ml_train_incendie`;

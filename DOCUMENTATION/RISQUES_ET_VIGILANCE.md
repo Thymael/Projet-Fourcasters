@@ -1,53 +1,53 @@
-# Risques et points de vigilance
+# Risques et limites
 
-Fourcasters utilise des données météo et géographiques. Il ne traite pas de
-données personnelles, mais cela ne supprime pas tous les risques.
+Le dépôt consulté traite la météo, la géographie et le danger prévu. Il ne
+contient pas d'application avec des comptes utilisateurs. Les cinq risques
+liés aux comptes dans la matrice Excel sont donc des scénarios futurs.
+Leurs cotations ont été conservées, sans les présenter comme des incidents
+ou des fonctionnalités actuelles.
 
-## Synthèse
-
-| Risque | Impact possible | Réponse du projet |
+| Risque actuel | Réponse du projet | Limite restante |
 |---|---|---|
-| Données incomplètes ou API indisponible | Analyse fausse ou pipeline bloqué | tentatives, délais maximum et contrôles de volume |
-| Doublons pendant une relance | Résultats surestimés | clé `row_hash` et `MERGE` BigQuery |
-| Biais géographique | Certaines zones sont mal représentées | documenter les 360 points et les limites du périmètre |
-| Confusion entre danger et feux réels | Mauvaise interprétation | nommer clairement le danger **prévu** Météo-France |
-| Dépendance aux services cloud | Pipeline indisponible ou coûteux | formats ouverts, code dbt et requêtes SQL versionnés |
-| Fuite d'une clé | Accès non autorisé aux services | `.env`, GitHub Secrets et fichiers de clés ignorés par Git |
+| API indisponible ou quota | délai maximum, trois essais, arrêt sur échec | le service externe reste nécessaire |
+| Données incomplètes | contrôle des dates, colonnes, codes, volumes et fenêtres ML | la fraîcheur Météo-France doit être interprétée selon la saison |
+| Doublons lors d'une relance | hash stable, MERGE et contrôle dans une transaction | les données historiques déjà incorrectes demandent une investigation |
+| Mauvaise jointure | grain documenté, clés uniques, relation département/jour | ne pas additionner les bulletins comme des feux réels |
+| Clé publiée par erreur | secrets hors du code et des logs | les droits effectifs du compte cloud restent à vérifier |
+| Évaluation ML trompeuse | séparation par dates, écart J1/J2, référence majoritaire | validation rétrospective, sans archive des versions météo disponibles à l'époque |
 
-## Environnement
+## Interprétation
 
-La collecte est incrémentale : une seule journée Open-Meteo et une publication
-Météo-France sont ajoutées à chaque exécution. Les 360 communes sont demandées
-par lots pour limiter le nombre d'appels. Les fichiers locaux sont générés dans
-`data/` et ne sont pas versionnés.
+Les 360 points couvrent la métropole mais ne décrivent pas tous les reliefs
+et microclimats. Les niveaux Météo-France sont des prévisions, pas des départs
+de feu. Les variables météo seules ne décrivent ni la végétation, ni l'activité
+humaine, ni les moyens d'intervention.
 
-Le principal point à surveiller reste le coût des reconstructions dbt. Si le
-volume augmente beaucoup, `fact_meteo` pourra devenir incrémentale. Les variables
-météo devront aussi être revues après l'EDA afin de ne garder que celles qui sont
-utiles.
+Pour comparer la pluie entre départements, utiliser une moyenne des points,
+puis un cumul dans le temps sur une période comparable. Une donnée absente
+n'est pas un zéro.
 
-## Éthique et interprétation
+## Calcul et stockage
 
-- le périmètre couvre la France métropolitaine, pas les territoires ultramarins ;
-- un point d'observation ne représente pas toujours tout le relief d'une zone ;
-- le danger incendie est une prévision, pas une observation de départ de feu ;
-- les résultats doivent aider l'analyse, pas remplacer l'avis des services
-  spécialisés.
+Open-Meteo récupère les journées manquantes par lots de dix points, jusqu'à
+sept journées par exécution. Les tables finales dbt restent reconstruites
+entièrement. Une évolution incrémentale sera utile si le coût mesuré le
+justifie, à condition de traiter aussi les corrections de journées anciennes.
 
-Ces limites doivent apparaître dans le rapport Power BI et dans le futur travail
-de Machine Learning.
+La jointure Power BI utilise des périodes de validité pour retrouver la
+dernière météo disponible, sans produire toutes les combinaisons antérieures
+à chaque bulletin. Aucun gain de coût réel n'est annoncé sans mesure BigQuery.
 
-## Risque technique
+Le profil dbt est configuré en US. Il reprend le projet existant ; aucune
+migration géographique n'a été effectuée. Les sauvegardes et règles de
+conservation du bucket ne sont pas contrôlées depuis ce dépôt.
 
-Le projet dépend d'Open-Meteo, de Météo-France, de Google Cloud, de GitHub et de
-dbt. Une panne, un changement d'API ou un quota peut interrompre le traitement.
-Les données intermédiaires sont donc enregistrées en Parquet, tandis que le code
-SQL et dbt restent portables. Les contrôles BigQuery permettent de repérer une
-actualisation manquante.
+## Logs et reprise
 
-## Utilisation de l'IA
+GitHub conserve la sortie console des workflows. Les fichiers locaux de
+reprise sont exclus de Git et ne survivent pas aux machines éphémères de
+GitHub Actions. Les Parquet envoyés dans Cloud Storage restent utiles au rejeu.
 
-L'IA peut aider à relire ou expliquer du code, mais les choix, les tests et la
-validation finale restent humains. Aucun secret ni jeu de données confidentiel
-ne doit lui être transmis. Une proposition générée doit être comprise avant
-d'être intégrée au projet.
+Une source déjà chargée n'est pas annulée si l'autre échoue. Chaque source a
+son propre historique et sa propre transaction. Les scripts s'arrêtent sur
+l'erreur et la construction dbt n'est pas lancée par le workflow si une collecte
+échoue.

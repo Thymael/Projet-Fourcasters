@@ -1,57 +1,51 @@
-# Règles Clean Code
+# Conventions du projet
 
-Ces règles servent de repère pour garder Fourcasters simple à lire et à
-modifier. Le but n'est pas d'avoir le code le plus sophistiqué, mais un pipeline
-que nous pouvons expliquer.
+Nous gardons des fonctions courtes, des noms explicites et un parcours facile
+à suivre : récupérer, contrôler, enregistrer, charger.
 
-## Organisation
+- Les commandes sont dans `scripts/`, les fonctions dans `src/fourcasters_dbt/`.
+- Une fonction a un rôle principal. Les appels HTTP, le logging et le chargement
+  communs sont regroupés, sans ajouter de classes ou de framework.
+- Les noms sont en français. Les constantes sont en majuscules.
+- Une courte docstring explique les fonctions utiles. Les commentaires précisent
+  une règle métier ou une décision qui ne se voit pas directement dans le code.
+- Les collectes utilisent `logging`, avec quelques emojis pour identifier les étapes.
+  Le script ML garde `print` pour présenter ses tableaux de résultats.
+- Les erreurs temporaires sont réessayées trois fois. Une erreur de format ou
+  d'identification arrête le traitement. Aucun `except` ne masque un échec.
+- Les secrets restent dans `.env` ou GitHub Secrets. Les logs n'affichent pas
+  les en-têtes d'authentification.
 
-| Dossier | Rôle |
-|---|---|
-| `scripts/` | Points d'entrée lancés à la main ou par GitHub Actions |
-| `src/fourcasters_dbt/` | Fonctions Python classées par sujet |
-| `fourcasters/` | Modèles, sources et tests dbt |
-| `DOCUMENTATION/` | Contrôles et décisions utiles au projet |
+## Fiabilité des chargements
 
-## Nos règles
+Les collectes sont validées avant l'envoi. Le chargement remplace une table de
+réception, jamais l'historique. Le `row_hash` identifie une date et un point
+Open-Meteo, ou un horodatage de bulletin et un département Météo-France.
 
-1. Choisir des noms explicites en français : `nombre_departements` plutôt que
-   `nb_dep`.
-2. Commencer le nom d'une fonction par un verbe : `preparer_donnees()`.
-3. Donner une seule responsabilité principale à chaque fonction.
-4. Mettre les valeurs fixes en constantes majuscules.
-5. Écrire une courte docstring pour les fonctions réutilisées.
-6. Commenter une raison ou une règle métier, pas une ligne déjà évidente.
-7. Mutualiser uniquement le code réellement commun aux deux sources.
-8. Supprimer le code mort et les brouillons au lieu de les archiver dans le
-   dépôt.
-9. Lire les secrets depuis `.env` ou GitHub Secrets, jamais depuis le code.
-10. Garder des affichages courts : `✅` succès, `⏳` attente, `❌` erreur.
+La fusion et son contrôle final partagent une transaction BigQuery. Si une
+instruction échoue avant `COMMIT`, BigQuery annule cette transaction. Les
+fichiers Cloud Storage et la table de réception restent disponibles pour
+comprendre l'erreur. Chaque source a sa propre transaction : l'échec de
+Météo-France n'annule pas une journée Open-Meteo déjà validée.
+[Comportement des transactions BigQuery](https://docs.cloud.google.com/bigquery/docs/transactions).
 
-Les annotations de type sont utiles quand elles rendent la fonction plus claire.
-Elles ne sont pas obligatoires sur chaque variable.
+L'import d'archives a sa propre table de réception pour ne pas écraser celle
+de la collecte quotidienne. Deux lancements identiques depuis des machines
+différentes doivent néanmoins être évités.
 
-## Avant un commit
+## Vérifier une modification
 
 ```bash
-uv run python -m py_compile \
-  scripts/*.py \
-  src/fourcasters_dbt/*.py
-
+uv run pytest -q
 uv run dbt parse --project-dir fourcasters
 git diff --check
 ```
 
-Si les données ou les modèles changent, il faut aussi lancer :
+Les tests utilisent des données fictives. Deux tests HTTP simulent des réponses
+avec `monkeypatch` : cela évite un appel réel et une attente pendant les tests.
+Après un changement SQL, exécuter aussi `dbt build` avec les accès BigQuery.
+Une analyse syntaxique seule ne valide pas les données du cloud.
 
-```bash
-uv run dbt build --project-dir fourcasters
-```
-
-Checklist rapide :
-
-- [ ] le comportement attendu est conservé ;
-- [ ] aucun secret ou fichier généré n'est suivi par Git ;
-- [ ] les noms et commentaires sont compréhensibles ;
-- [ ] les contrôles de volume et de doublons sont toujours présents ;
-- [ ] le README correspond aux commandes actuelles.
+Ces choix reprennent les cours Clean Code, fiabilité, logging et validation
+consultés dans le Drive de formation. La validation reste faite avec pandas et
+des conditions simples ; ajouter Pydantic n'était pas nécessaire ici.
