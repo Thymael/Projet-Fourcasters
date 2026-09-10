@@ -1,7 +1,7 @@
 """Point d'entrée unique des deux collectes quotidiennes Fourcasters."""
 
 import argparse
-
+import logging
 import pandas as pd
 from google.cloud import bigquery
 
@@ -36,6 +36,16 @@ from fourcasters_dbt.openmeteo import (
     trouver_date_a_recuperer,
 )
 
+# ============================================================
+# LOGS
+# ============================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
+)
+
+logger = logging.getLogger(__name__)
 
 def main_openmeteo() -> None:
     """Lance la collecte Open-Meteo puis met à jour BigQuery."""
@@ -152,19 +162,24 @@ def lire_arguments() -> argparse.Namespace:
 
 
 def main() -> None:
-    """Lance les deux pipelines ou seulement celui demandé en argument."""
+    """Lance les deux pipelines ou seulement celui demandé."""
 
     arguments = lire_arguments()
 
-    print("\n🚀 ACTUALISATION FOURCASTERS")
+    logger.info("🚀 Démarrage de l'actualisation Fourcasters")
 
-    if not arguments.incendie_only:
-        main_openmeteo()
+    try:
+        if not arguments.incendie_only:
+            main_openmeteo()
 
-    if not arguments.openmeteo_only:
-        main_incendie(mode_local=arguments.local_only)
+        if not arguments.openmeteo_only:
+            main_incendie(mode_local=arguments.local_only)
 
-    print("\n🎉 Actualisation Fourcasters terminée.")
+    except Exception:
+        logger.exception("Échec de l'actualisation Fourcasters")
+        raise
+
+    logger.info("🎉 Actualisation Fourcasters terminée avec succès")
 
 
 if __name__ == "__main__":

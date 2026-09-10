@@ -11,12 +11,21 @@ dependencies = [
     "dbt-bigquery>=1.12.0",
     "google-cloud-bigquery>=3.44.0",
     "google-cloud-storage>=3.1.1",
+    "ipykernel>=7.3.0",
+    "matplotlib>=3.11.1",
+    "notebook>=7.6.2",
     "pandas>=3.0.5",
     "pyarrow>=25.0.1",
     "python-dotenv>=1.1.0",
     "requests>=2.34.2",
+    "scikit-learn>=1.9.0",
 ]
 
 [build-system]
 requires = ["uv_build>=0.12.6,<0.13.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

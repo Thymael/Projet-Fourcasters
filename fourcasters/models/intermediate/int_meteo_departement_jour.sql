@@ -12,6 +12,8 @@ SELECT
     MAX(temperature_maximale) AS temperature_maximale,
     AVG(humidite_moyenne) AS humidite_moyenne,
     SUM(precipitations_totales) AS precipitations_totales,
+    -- Pour le ML, une moyenne en mm évite de favoriser les départements avec plus de points.
+    AVG(precipitations_totales) AS precipitations_moyennes,
     AVG(vitesse_vent_moyenne) AS vitesse_vent_moyenne,
     MAX(rafale_vent_maximale) AS rafale_vent_maximale,
     AVG(couverture_nuageuse_moyenne) AS couverture_nuageuse_moyenne,

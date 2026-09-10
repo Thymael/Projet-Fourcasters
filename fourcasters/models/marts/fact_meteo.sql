@@ -6,8 +6,9 @@
 
 SELECT
     row_hash AS id_observation_meteo,
-    DATE(date) AS date,
+    date,
     code_insee,
+    numero_departement,
     code_meteo,
 
     temperature_moyenne,
