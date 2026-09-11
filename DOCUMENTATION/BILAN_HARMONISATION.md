@@ -83,15 +83,17 @@ conservées. La cotation n'a pas fait l'objet d'une nouvelle évaluation métier
 | Tests Python avant modification | 8 tests réussis |
 | Tests Python après modification | 27 tests réussis, avec réponses HTTP simulées et entraînement sur données fictives |
 | `dbt parse` | réussi ; modèles, configuration et tests reconnus sans connexion BigQuery |
+| `dbt build` sur BigQuery | réussi le 11 septembre 2026 : 101 contrôles réussis, aucune erreur, aucun avertissement et aucune étape ignorée |
 | SQL sur données fictives | les 12 modèles et 13 requêtes du notebook exécutés localement après traduction BigQuery vers DuckDB |
 | Cas SQL ciblés | ancienne et nouvelle jointure Power BI équivalentes ; trous calendaires et fenêtres ML contrôlés ; noms des colonnes conformes au PBIX |
 | Syntaxe | Python, cellules de code du notebook et contrôles SQL analysés ; `git diff --check` sans erreur |
 | JSON | tables, champs, références de relations et identifiants vérifiés contre le modèle extrait |
 | Excel | formules recalculées sans erreur, 7 validations de données conservées, autres cellules inchangées et affichage contrôlé |
 
-L'essai SQL local est une vérification de logique. Il ne valide ni les droits,
-ni les types effectifs, ni les coûts, ni l'exécution du script transactionnel
-sur le service BigQuery. Les tests dbt sur les vraies données restent nécessaires.
+Le `dbt build` confirme les modèles et leurs tests sur les données du projet.
+L'essai SQL local complète cette vérification avec des cas fictifs ciblés.
+La collecte Python et son script transactionnel n'ont pas été exécutés pendant
+cette revue, et aucun coût BigQuery n'a été mesuré.
 
 Le dernier échec du pipeline consulté concernait 19 584 doublons de
 `id_apprentissage` sur le commit précédent. Le choix du dernier bulletin
@@ -102,9 +104,8 @@ Cet échec ancien ne prouve donc pas que la version actuelle échoue encore.
 
 ## Vérifications restantes avec les accès du projet
 
-1. Lancer la collecte puis `uv run dbt build --project-dir fourcasters` et
-   les [contrôles BigQuery](CONTROLES_BIGQUERY_FOURCASTERS.sql). Examiner les
-   éventuelles anomalies historiques avant de les supprimer ou de les remplacer.
+1. Après fusion de la pull request, vérifier une actualisation quotidienne
+   complète et ses logs avec les deux sources.
 2. Réexécuter le notebook et le script ML. Les anciens scores ne décrivent
    plus le nouveau découpage temporel.
 3. Ouvrir le PBIX dans Power BI Desktop, appliquer la correction DAX proposée
