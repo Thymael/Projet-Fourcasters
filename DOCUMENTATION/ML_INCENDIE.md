@@ -46,8 +46,29 @@ L'accuracy est comparée à une référence qui prédit toujours la classe la pl
 fréquente dans l'apprentissage. Le modèle reste en mémoire : aucun modèle
 n'est déployé ni enregistré automatiquement.
 
-Le score obtenu avec l'ancien découpage doit être recalculé. Les données
-fictives utilisées dans les tests vérifient le code, pas sa performance réelle.
+### Résultats du 11 septembre 2026
+
+L'évaluation utilise 66 432 lignes issues de BigQuery. L'apprentissage contient
+52 608 lignes jusqu'au 30 juin 2026. Les 13 440 lignes de test commencent le
+3 juillet 2026 ; les 384 lignes des deux jours intermédiaires sont écartées.
+
+| Indicateur | Résultat |
+|---|---:|
+| Accuracy du modèle | 52,59 % |
+| Accuracy de la classe majoritaire | 32,35 % |
+| Gain par rapport à la référence | 20,24 points |
+| F1 macro | 0,311 |
+
+Le modèle distingue correctement une partie des niveaux 1 et 2, avec des F1
+respectifs de 0,49 et 0,63. Il reconnaît encore mal le niveau 3 (F1 de 0,10)
+et le niveau 4 (F1 de 0,02). Une seule des 96 lignes de niveau 4 est bien
+classée. L'accuracy globale est donc encourageante pour un prototype, mais
+insuffisante pour une utilisation opérationnelle sur les dangers élevés.
+
+Les trois premières importances sont l'humidité moyenne sur sept jours,
+la température moyenne sur sept jours et le déficit maximal de pression de
+vapeur sur sept jours. Elles décrivent l'utilisation faite par le modèle et
+ne prouvent pas une relation de cause à effet.
 
 ## Limites
 
@@ -57,8 +78,8 @@ moment de chaque bulletin. Cette évaluation est rétrospective. Un essai en
 conditions réelles demanderait des données archivées telles qu'elles étaient
 publiées et plusieurs périodes de validation.
 
-Les classes rares et les niveaux 3/4 doivent être examinés séparément. Une
-importance de variable indique ce que le modèle utilise, pas une causalité.
+Les niveaux 3 et 4 demandent davantage d'exemples et plusieurs périodes de
+validation avant d'envisager une amélioration ou un réglage du modèle.
 
 Références : [réanalyses Open-Meteo](https://open-meteo.com/en/docs/historical-weather-api)
 et [séparation temporelle dans scikit-learn](https://scikit-learn.org/stable/modules/cross_validation.html#time-series-split).

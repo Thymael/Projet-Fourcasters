@@ -84,6 +84,7 @@ conservées. La cotation n'a pas fait l'objet d'une nouvelle évaluation métier
 | Tests Python après modification | 27 tests réussis, avec réponses HTTP simulées et entraînement sur données fictives |
 | `dbt parse` | réussi ; modèles, configuration et tests reconnus sans connexion BigQuery |
 | `dbt build` sur BigQuery | réussi le 11 septembre 2026 : 101 contrôles réussis, aucune erreur, aucun avertissement et aucune étape ignorée |
+| Modèle ML sur BigQuery | 66 432 lignes ; accuracy de 52,59 % contre 32,35 % pour la référence ; F1 macro de 0,311 |
 | SQL sur données fictives | les 12 modèles et 13 requêtes du notebook exécutés localement après traduction BigQuery vers DuckDB |
 | Cas SQL ciblés | ancienne et nouvelle jointure Power BI équivalentes ; trous calendaires et fenêtres ML contrôlés ; noms des colonnes conformes au PBIX |
 | Syntaxe | Python, cellules de code du notebook et contrôles SQL analysés ; `git diff --check` sans erreur |
@@ -106,8 +107,7 @@ Cet échec ancien ne prouve donc pas que la version actuelle échoue encore.
 
 1. Après fusion de la pull request, vérifier une actualisation quotidienne
    complète et ses logs avec les deux sources.
-2. Réexécuter le notebook et le script ML. Les anciens scores ne décrivent
-   plus le nouveau découpage temporel.
+2. Réexécuter le notebook pour actualiser ses tableaux et graphiques.
 3. Ouvrir le PBIX dans Power BI Desktop, appliquer la correction DAX proposée
    et vérifier les visuels avec les filtres de date et de département.
 4. Récupérer l'archive ZIP manquante pour vérifier les fichiers absents du dépôt.

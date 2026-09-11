@@ -13,7 +13,7 @@ ou des fonctionnalités actuelles.
 | Doublons lors d'une relance | hash stable, MERGE et contrôle dans une transaction | les données historiques déjà incorrectes demandent une investigation |
 | Mauvaise jointure | grain documenté, clés uniques, relation département/jour | ne pas additionner les bulletins comme des feux réels |
 | Clé publiée par erreur | secrets hors du code et des logs | les droits effectifs du compte cloud restent à vérifier |
-| Évaluation ML trompeuse | séparation par dates, écart J1/J2, référence majoritaire | validation rétrospective, sans archive des versions météo disponibles à l'époque |
+| Évaluation ML trompeuse | séparation par dates, écart J1/J2, référence majoritaire et F1 par classe | validation rétrospective ; seulement 1 % de rappel sur le niveau 4 lors de l'essai du 11 septembre 2026 |
 
 ## Interprétation
 
