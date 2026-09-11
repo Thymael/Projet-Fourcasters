@@ -30,7 +30,8 @@ WITH meteo_avec_rolling AS (
             COUNTIF(precipitations_moyennes = 0) OVER fenetre_7j, NULL
         ) AS jours_sans_pluie_7j,
         COUNTIF(
-            temperature_moyenne IS NOT NULL
+            mesures_completes
+            AND temperature_moyenne IS NOT NULL
             AND temperature_maximale IS NOT NULL
             AND humidite_moyenne IS NOT NULL
             AND precipitations_moyennes IS NOT NULL
@@ -81,7 +82,7 @@ SELECT
     meteo.deficit_pression_vapeur_maximal_7j,
     meteo.jours_sans_pluie_7j,
     meteo.nombre_jours_meteo_7j,
-    meteo.date IS NOT NULL AS meteo_disponible
+    COALESCE(meteo.nombre_jours_meteo_7j = 7, FALSE) AS meteo_disponible
 
 FROM dates_publication AS publication
 LEFT JOIN meteo_avec_rolling AS meteo

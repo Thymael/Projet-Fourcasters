@@ -42,3 +42,6 @@ service_account.json
 # Fichiers système
 .DS_Store
 Thumbs.db
+
+# Jupyter
+**/.ipynb_checkpoints/

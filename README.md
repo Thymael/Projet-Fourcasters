@@ -5,130 +5,131 @@
 Projet de fin de formation Data Analyst à la Wild Code School.
 
 Fourcasters rapproche la météo historique et le danger d'incendie en France
-métropolitaine. Le but est de préparer des données fiables pour l'EDA, Power BI
-et un futur modèle de Machine Learning.
+métropolitaine. Les données servent à l'analyse exploratoire, à Power BI et à
+un premier modèle de classification.
 
-## Les données
+## Données utilisées
 
-| Source | Contenu | Grain |
+| Source | Contenu | Une ligne représente |
 |---|---|---|
-| Open-Meteo (`ERA5-Seamless`) | Observations météo quotidiennes | 360 points par jour |
-| Météo-France, Météo des forêts | Danger prévu à J1 et J2 | 96 départements par publication |
-| Archives Météo-France | Danger incendie depuis 2024 | 96 départements par publication |
+| Open-Meteo, ERA5-Seamless | Météo historique reconstituée par réanalyse | un point et un jour, sur 360 points |
+| Météo-France, API et archives depuis 2024 | Danger prévu à J1 et J2 | un département et un horodatage de publication, sur 96 départements |
 
-Le niveau Météo-France indique un **danger prévu**. Il ne correspond pas au
-nombre de feux réellement observés.
+Le niveau Météo-France va de 1 à 4. Il indique un **danger prévu**, sans
+recenser les départs de feu. Les archives incendie sont saisonnières.
 
-## Fonctionnement
-
-```mermaid
-flowchart LR
-    A[APIs météo] --> B[Python]
-    B --> C[Cloud Storage]
-    C --> D[BigQuery]
-    D --> E[dbt]
-    E --> F[EDA, Power BI, ML]
-```
-
-Le workflow GitHub Actions lance chaque jour :
-
-1. la collecte Open-Meteo ;
-2. la collecte Météo-France ;
-3. le chargement dans BigQuery ;
-4. la construction et les tests des modèles dbt.
-
-Les principales tables finales sont :
-
-- `dim_date`, `dim_commune` et `dim_departement` ;
-- `fact_meteo` ;
-- `fact_danger_incendie` ;
-- `pbi_risque_incendie`, une table plate pour Power BI ;
-- `ml_features_incendie`, les variables météo disponibles avant la publication ;
-- `ml_train_incendie`, le jeu d'apprentissage J1/J2 avec la cible Météo-France.
+Open-Meteo reconstitue la météo à partir de modèles et d'observations. Les
+360 points ne sont donc pas 360 stations de mesure. Le pipeline garde six
+jours de recul avant de demander une nouvelle journée.
+[Documentation Open-Meteo](https://open-meteo.com/en/docs/historical-weather-api).
 
 ## Organisation
 
-```text
-fourcasters/              modèles et tests dbt
-scripts/                  scripts à lancer
-src/fourcasters_dbt/      fonctions Python du pipeline
-DOCUMENTATION/            contrôles et choix du projet
-.github/workflows/        automatisation quotidienne
-```
+| Dossier | Contenu |
+|---|---|
+| `scripts/` | les trois commandes à lancer |
+| `src/fourcasters_dbt/` | collecte, contrôles, chargement et ML |
+| `fourcasters/` | référentiel, modèles SQL et tests dbt |
+| `tests/` | tests Python sans API ni accès cloud |
+| `notebooks/` | analyse exploratoire |
+| `DOCUMENTATION/` | modèle Power BI, méthode ML, contrôles et bilan |
 
-Le fichier `scripts/actualiser_fourcasters.py` contient les deux orchestrations
-principales. Les fonctions métier restent séparées dans `src/` pour garder des
-fichiers lisibles.
+Les fichiers passent de Python à Cloud Storage, puis aux tables de réception
+BigQuery. Après validation, un `MERGE` met à jour l'historique. dbt construit
+ensuite les dimensions, les tables de faits et les tables Power BI/ML.
 
-## Installation locale
+## Installation
 
-Prérequis : Python 3.12, `uv`, une clé GCP et une API Key Météo-France.
+Prérequis : Python 3.12, `uv`, un accès au projet Google Cloud et une clé API
+Météo-France. Les tables historiques Open-Meteo doivent déjà exister : le
+script quotidien reprend à partir du 1er août 2026 et ne recrée pas l'import
+initial 2000–juillet 2026.
+
+Depuis la racine du projet, dans Git Bash :
 
 ```bash
-uv sync
+uv sync --frozen
 cp .env.example .env
+mkdir -p ~/.dbt
+cp fourcasters/profiles.example.yml ~/.dbt/profiles.yml
 ```
 
-Renseigner ensuite les deux valeurs dans `.env`. Ce fichier et les clés GCP sont
-ignorés par Git.
+Renseigner `.env` avec le chemin de la clé Google et la clé Météo-France.
+Une identité Google ADC déjà configurée peut aussi être utilisée. Le profil
+dbt reprend la région **US** du projet existant. Le changer ne déplace pas
+les données.
 
-Pour lancer dbt en local, ajouter aussi un profil `fourcasters` dans
-`~/.dbt/profiles.yml` avec le projet BigQuery `fourcasters-openmeteo-loick`.
-
-## Commandes utiles
+## Commandes
 
 ```bash
-# Pipeline complet
+# Collecter les deux sources et charger BigQuery
 uv run python scripts/actualiser_fourcasters.py
 
-# Une seule source
+# Reconstruire les tables d'analyse et exécuter les tests dbt
+uv run dbt build --project-dir fourcasters
+
+# Collecter une seule source
 uv run python scripts/actualiser_fourcasters.py --openmeteo-only
 uv run python scripts/actualiser_fourcasters.py --incendie-only
 
-# Test local de l'API incendie, sans envoi dans GCP
+# Vérifier l'API incendie et produire un Parquet local, sans écrire dans Google Cloud
 uv run python scripts/actualiser_fourcasters.py --incendie-only --local-only
 
-# Modèles et tests dbt
-uv run dbt build --project-dir fourcasters
+# Import ponctuel des archives (pas besoin de le relancer chaque jour)
+uv run python scripts/importer_archives_meteofrance.py --annees 2024 2025 2026
+
+# Entraîner et évaluer le modèle
+uv run python scripts/entrainer_ml_incendie.py
 ```
 
-L'historique Météo-France est un import ponctuel :
+Pour préparer les archives sans envoi dans Google Cloud, ajouter `--local-only`.
+Open-Meteo recherche la première journée manquante ou incomplète et rattrape
+jusqu'à sept journées par exécution. Les CSV locaux permettent de reprendre
+une collecte interrompue. Sur GitHub Actions, ces fichiers locaux ne sont
+pas conservés entre deux exécutions.
+
+Ne pas lancer deux collectes identiques simultanément depuis le PC et GitHub :
+elles utilisent la même table de réception. Les exécutions du workflow
+quotidien sont mises en file d'attente entre elles.
+
+## Analyse et Power BI
+
+Pour utiliser le notebook :
 
 ```bash
-uv run python scripts/importer_archives_meteofrance.py --local-only
-uv run python scripts/importer_archives_meteofrance.py
+uv sync --frozen --group analyse
+uv run jupyter notebook notebooks/01_eda_fourcasters.ipynb
 ```
 
-## Contrôles
+Le PBIX fourni contient cinq pages. Les noms de ses tables, colonnes et mesures
+sont conservés. Voir le [modèle Power BI](DOCUMENTATION/MODELE_POWERBI.md)
+et la [méthode ML](DOCUMENTATION/ML_INCENDIE.md).
 
-Le pipeline vérifie les colonnes obligatoires, les volumes attendus et les
-doublons avant de mettre à jour l'historique. Les tests dbt contrôlent ensuite
-les clés, les valeurs et les relations entre les tables.
+## Vérifications et automatisation
 
-Les requêtes de vérification manuelle sont dans
-[`DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql`](DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql).
-Les conventions de code et les risques du projet sont résumés dans les deux
-autres fichiers du dossier `DOCUMENTATION/`.
+```bash
+uv run pytest -q
+uv run dbt parse --project-dir fourcasters
+git diff --check
+```
 
-## EDA et suite du projet
+`dbt parse` vérifie le projet sans exécuter de SQL dans BigQuery. `dbt build`
+reconstruit les tables et contrôle leurs données ; il demande les accès cloud.
 
-Le premier notebook est dans
-[`notebooks/01_eda_fourcasters.ipynb`](notebooks/01_eda_fourcasters.ipynb). Il
-se connecte à BigQuery et vérifie les volumes, les dates et les valeurs
-manquantes avant de commencer les graphiques Power BI.
+- `tests.yml` vérifie Python et dbt sur les pull requests et les mises à jour de `main`.
+- `pipeline.yml` collecte les données puis lance `dbt build`, chaque jour à 4 h,
+  heure de Paris, ou à la demande dans l'onglet Actions.
+- Les secrets attendus sont `GCP_SA_KEY` et `METEOFRANCE_API_KEY`.
 
-Le modèle ML vise à prévoir le niveau de danger Météo-France à J1 et J2. La
-cible est `cible_niveau_danger`, une classe de 1 à 4. Il ne s'agit pas de
-prévoir un incendie réellement observé.
+Les logs indiquent l'heure, le niveau et l'étape. Une erreur arrête le script
+avec un code de sortie non nul. La collecte est incrémentale ; les tables
+finales dbt restent reconstruites entièrement pour garder leur logique simple.
 
-## État du projet
+Les [contrôles SQL](DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql) complètent
+les tests. Le [bilan de l'harmonisation](DOCUMENTATION/BILAN_HARMONISATION.md)
+distingue les changements vérifiés localement des vérifications cloud restantes.
 
-- ingestion et actualisation quotidienne : opérationnelles ;
-- modèle en étoile dbt : opérationnel ;
-- préparation des tables EDA, Power BI et ML : en cours.
+## Équipe
 
-## Auteur
-
-**MARTIN Loïck**
-
-Projet Data Analyst — Wild Code School
+Angèle, Christophe, Eddy et Loïck. Dépôt du pipeline météo et danger incendie
+maintenu par Loïck Martin.

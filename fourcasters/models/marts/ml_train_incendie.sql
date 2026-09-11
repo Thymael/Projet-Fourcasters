@@ -8,7 +8,7 @@ WITH danger_unique AS (
             date_publication,
             numero_departement,
             echeance
-        ORDER BY reference_time DESC
+        ORDER BY reference_time DESC, insere_a DESC, id_danger_incendie DESC
     ) = 1
 
 )

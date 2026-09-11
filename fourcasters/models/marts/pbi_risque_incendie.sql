@@ -1,3 +1,13 @@
+-- Chaque journée météo reste la dernière connue jusqu'à la suivante.
+-- Cette jointure conserve une seule ligne météo par prévision, même avec des trous.
+WITH meteo_par_periode AS (
+    SELECT *,
+        LEAD(date, 1, DATE '9999-12-31') OVER (
+            PARTITION BY numero_departement ORDER BY date
+        ) AS date_suivante
+    FROM {{ ref('int_meteo_departement_jour') }}
+)
+
 SELECT
     danger.id_danger_incendie,
     danger.reference_time,
@@ -37,12 +47,7 @@ FROM {{ ref('fact_danger_incendie') }} AS danger
 INNER JOIN {{ ref('dim_departement') }} AS departement
     ON danger.numero_departement = departement.numero_departement
 
-LEFT JOIN {{ ref('int_meteo_departement_jour') }} AS meteo
+LEFT JOIN meteo_par_periode AS meteo
     ON danger.numero_departement = meteo.numero_departement
     AND meteo.date <= danger.date_publication
-
-QUALIFY
-    ROW_NUMBER() OVER (
-        PARTITION BY danger.id_danger_incendie
-        ORDER BY meteo.date DESC
-    ) = 1
+    AND danger.date_publication < meteo.date_suivante

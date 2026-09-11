@@ -6,6 +6,14 @@ SELECT
     ANY_VALUE(departement) AS departement,
     ANY_VALUE(region) AS region,
     COUNT(DISTINCT code_insee) AS nombre_points_meteo,
+    COUNTIF(
+        temperature_moyenne IS NOT NULL
+        AND temperature_maximale IS NOT NULL
+        AND humidite_moyenne IS NOT NULL
+        AND precipitations_totales IS NOT NULL
+        AND rafale_vent_maximale IS NOT NULL
+        AND deficit_pression_vapeur_maximal IS NOT NULL
+    ) = COUNT(*) AS mesures_completes,
 
     AVG(temperature_moyenne) AS temperature_moyenne,
     MIN(temperature_minimale) AS temperature_minimale,

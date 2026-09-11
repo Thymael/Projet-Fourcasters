@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+
 import pandas as pd
 from google.cloud import bigquery
 
@@ -27,6 +28,7 @@ from fourcasters_dbt.incendie import (
     preparer_donnees,
     recuperer_meteo_forets,
 )
+from fourcasters_dbt.journal import configurer_logs
 from fourcasters_dbt.openmeteo import (
     DOSSIER_GCS as DOSSIER_GCS_OPENMETEO,
     TABLE_LANDING as TABLE_LANDING_OPENMETEO,
@@ -36,53 +38,27 @@ from fourcasters_dbt.openmeteo import (
     trouver_date_a_recuperer,
 )
 
-# ============================================================
-# LOGS
-# ============================================================
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
-
 logger = logging.getLogger(__name__)
+NOMBRE_POINTS_ATTENDU = 360
+MAX_JOURS_PAR_EXECUTION = 7
 
-def main_openmeteo() -> None:
-    """Lance la collecte Open-Meteo puis met à jour BigQuery."""
 
-    print("\n🌦️  ACTUALISATION OPEN-METEO")
-    configurer_google_cloud()
-    DOSSIER_OPENMETEO.mkdir(parents=True, exist_ok=True)
-
-    communes = pd.read_csv(
-        FICHIER_COMMUNES,
-        dtype={"numero_departement": "string", "code_insee": "string"},
-    )
-    date_a_recuperer = trouver_date_a_recuperer(len(communes))
-
-    if date_a_recuperer is None:
-        print("✅ Open-Meteo est déjà à jour.")
-        return
+def actualiser_journee_openmeteo(communes, date_a_recuperer) -> None:
+    """Collecte une journée complète avant de la charger."""
 
     fichier_csv = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.csv"
     fichier_parquet = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.parquet"
 
     collecter_communes(communes, date_a_recuperer, fichier_csv)
-    actualisation = creer_parquet(fichier_csv, fichier_parquet)
+    actualisation = creer_parquet(fichier_csv, fichier_parquet, communes, date_a_recuperer)
 
-    print("\n✅ Collecte Open-Meteo terminée")
-    print(f"   Communes : {len(actualisation)}/{len(communes)}")
-    print(f"   Parquet : {fichier_parquet}")
+    logger.info("✅ Collecte terminée : %s/%s communes", len(actualisation), len(communes))
+    logger.info("Parquet : %s", fichier_parquet)
 
-    if len(actualisation) != len(communes):
-        raise RuntimeError(
-            f"Envoi impossible : {len(actualisation)} communes sur {len(communes)}."
-        )
-
-    print("\n☁️  Envoi vers Google Cloud...")
+    logger.info("☁️  Envoi vers Google Cloud...")
     chemin_gcs = f"{DOSSIER_GCS_OPENMETEO}/{fichier_parquet.name}"
     adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    print(f"✅ Fichier envoyé : {adresse_gcs}")
+    logger.info("Fichier envoyé : %s", adresse_gcs)
     charger_parquet_bigquery(
         adresse_gcs,
         TABLE_LANDING_OPENMETEO,
@@ -93,10 +69,35 @@ def main_openmeteo() -> None:
     fusionner_historique_openmeteo(client_bigquery)
 
 
+def main_openmeteo() -> None:
+    """Rattrape les journées manquantes, au maximum sept par exécution."""
+    logger.info("🌦️ Actualisation Open-Meteo")
+    configurer_google_cloud()
+    DOSSIER_OPENMETEO.mkdir(parents=True, exist_ok=True)
+    communes = pd.read_csv(
+        FICHIER_COMMUNES,
+        dtype={"numero_departement": "string", "code_insee": "string"},
+    )
+    communes["code_insee"] = communes["code_insee"].str.strip()
+    if (
+        len(communes) != NOMBRE_POINTS_ATTENDU
+        or communes["code_insee"].isna().any()
+        or communes["code_insee"].duplicated().any()
+    ):
+        raise ValueError("Le référentiel doit contenir 360 codes de commune distincts.")
+    for _ in range(MAX_JOURS_PAR_EXECUTION):
+        jour = trouver_date_a_recuperer(len(communes))
+        if jour is None:
+            return
+        actualiser_journee_openmeteo(communes, jour)
+    if trouver_date_a_recuperer(len(communes)) is not None:
+        logger.warning("⏳ Sept journées récupérées. Une prochaine exécution poursuivra le rattrapage.")
+
+
 def main_incendie(mode_local: bool = False) -> None:
     """Lance la collecte incendie puis met à jour BigQuery."""
 
-    print("\n🔥 ACTUALISATION MÉTÉO DES FORÊTS")
+    logger.info("🔥 Actualisation Météo des forêts")
     api_key = lire_api_key()
     DOSSIER_INCENDIE.mkdir(parents=True, exist_ok=True)
 
@@ -105,22 +106,22 @@ def main_incendie(mode_local: bool = False) -> None:
     fichier_parquet = enregistrer_parquet_incendie(donnees_incendie)
     reference_time = donnees_incendie["reference_time"].iloc[0]
 
-    print(f"✅ Départements : {len(donnees_incendie)}/{NOMBRE_DEPARTEMENTS_ATTENDU}")
-    print(f"📅 Publication : {reference_time}")
-    print(f"📦 Parquet : {fichier_parquet}")
+    logger.info("Départements : %s/%s", len(donnees_incendie), NOMBRE_DEPARTEMENTS_ATTENDU)
+    logger.info("Publication : %s", reference_time)
+    logger.info("Parquet : %s", fichier_parquet)
 
     if mode_local:
-        print("🧪 Mode local : aucun envoi vers Google Cloud.")
+        logger.info("🧪 Mode local : aucun envoi vers Google Cloud.")
         return
 
     configurer_google_cloud()
-    print("\n☁️  Envoi vers Google Cloud...")
+    logger.info("☁️  Envoi vers Google Cloud...")
     chemin_gcs = (
         f"{DOSSIER_GCS_INCENDIE}/"
         f"{reference_time:%Y/%m/%d}/{fichier_parquet.name}"
     )
     adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    print(f"✅ Fichier envoyé : {adresse_gcs}")
+    logger.info("Fichier envoyé : %s", adresse_gcs)
 
     client_bigquery = bigquery.Client(project=PROJET_GCP)
     preparer_datasets_bigquery(client_bigquery)
@@ -130,7 +131,7 @@ def main_incendie(mode_local: bool = False) -> None:
         NOMBRE_DEPARTEMENTS_ATTENDU,
     )
     fusionner_historique_incendie(client_bigquery)
-    print("✅ Actualisation incendie terminée.")
+    logger.info("✅ Actualisation incendie terminée.")
 
 
 def lire_arguments() -> argparse.Namespace:
@@ -164,6 +165,7 @@ def lire_arguments() -> argparse.Namespace:
 def main() -> None:
     """Lance les deux pipelines ou seulement celui demandé."""
 
+    configurer_logs()
     arguments = lire_arguments()
 
     logger.info("🚀 Démarrage de l'actualisation Fourcasters")
@@ -176,10 +178,10 @@ def main() -> None:
             main_incendie(mode_local=arguments.local_only)
 
     except Exception:
-        logger.exception("Échec de l'actualisation Fourcasters")
-        raise
+        logger.exception("❌ Échec de l'actualisation Fourcasters")
+        raise SystemExit(1)
 
-    logger.info("🎉 Actualisation Fourcasters terminée avec succès")
+    logger.info("✅ Actualisation Fourcasters terminée")
 
 
 if __name__ == "__main__":

@@ -11,3 +11,10 @@ SELECT
     niveau_j2
 
 FROM {{ source('meteofrance_raw', 'meteo_forets') }}
+
+-- L'API et l'archive 2026 se recouvrent. Les anciens scripts n'utilisaient
+-- pas toujours le même format de date dans le hash, malgré un bulletin identique.
+QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY reference_time, TRIM(dep_code)
+    ORDER BY insere_a DESC, row_hash DESC
+) = 1

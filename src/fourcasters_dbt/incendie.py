@@ -1,16 +1,19 @@
 """Collecte des niveaux de danger incendie publiés par Météo-France."""
 
 import hashlib
+import logging
 import os
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
-import requests
 from google.cloud import bigquery
 
 from fourcasters_dbt.configuration import DOSSIER_INCENDIE, PROJET_GCP
+from fourcasters_dbt.google_cloud import fusionner_historique
+from fourcasters_dbt.http import recuperer_reponse
+
+logger = logging.getLogger(__name__)
 
 
 URL_METEO_FRANCE = (
@@ -23,11 +26,9 @@ DATASET_RAW = "meteofrance_raw"
 TABLE_LANDING = f"{PROJET_GCP}.{DATASET_LANDING}.meteo_forets_actualisation"
 TABLE_HISTORIQUE = f"{PROJET_GCP}.{DATASET_RAW}.meteo_forets"
 
-NOMBRE_DEPARTEMENTS_ATTENDU = 96
-NOMBRE_TENTATIVES = 3
+CODES_DEPARTEMENTS = {f"{code:02d}" for code in range(1, 96) if code != 20} | {"2A", "2B"}
+NOMBRE_DEPARTEMENTS_ATTENDU = len(CODES_DEPARTEMENTS)
 TIMEOUT_API = 60
-PAUSE_APRES_ERREUR = 10
-PAUSE_QUOTA = 61
 COLONNES_ATTENDUES = [
     "reference_time",
     "dep_code",
@@ -71,7 +72,10 @@ def normaliser_code_departement(valeur: object) -> str:
     if not code_departement.isdigit():
         raise ValueError(f"Code département incorrect : {code_departement}")
 
-    return code_departement.zfill(2)
+    code_departement = code_departement.zfill(2)
+    if code_departement not in CODES_DEPARTEMENTS:
+        raise ValueError(f"Département hors du périmètre métropolitain : {code_departement}")
+    return code_departement
 
 
 def creer_row_hash(reference_time: pd.Timestamp, code_departement: str) -> str:
@@ -87,40 +91,13 @@ def recuperer_meteo_forets(api_key: str) -> list[dict]:
     parametres = {"format": "json", "echeance": "J1J2"}
     entetes = {"accept": "application/json", "apikey": api_key}
 
-    for tentative in range(1, NOMBRE_TENTATIVES + 1):
-        try:
-            print(f"🔄 Tentative API {tentative}/{NOMBRE_TENTATIVES}")
-            reponse = requests.get(
-                URL_METEO_FRANCE,
-                params=parametres,
-                headers=entetes,
-                timeout=TIMEOUT_API,
-            )
-
-            if reponse.status_code == 429:
-                if tentative == NOMBRE_TENTATIVES:
-                    raise RuntimeError("Météo-France bloque toujours les requêtes.")
-
-                print(f"⏳ Limite API : pause de {PAUSE_QUOTA} secondes...")
-                time.sleep(PAUSE_QUOTA)
-                continue
-
-            reponse.raise_for_status()
-            donnees_api = reponse.json()
-
-            if not isinstance(donnees_api, list):
-                raise ValueError("La réponse de l'API n'est pas une liste.")
-
-            return donnees_api
-
-        except (requests.RequestException, ValueError) as erreur:
-            print(f"❌ Échec de l'appel API : {erreur}")
-
-            if tentative < NOMBRE_TENTATIVES:
-                print(f"Nouvel essai dans {PAUSE_APRES_ERREUR} secondes...")
-                time.sleep(PAUSE_APRES_ERREUR)
-
-    raise RuntimeError("L'API Météo-France reste inaccessible après trois essais.")
+    reponse = recuperer_reponse(
+        URL_METEO_FRANCE, params=parametres, headers=entetes, timeout=TIMEOUT_API,
+    )
+    donnees_api = reponse.json()
+    if not isinstance(donnees_api, list):
+        raise ValueError("La réponse Météo-France n'est pas une liste.")
+    return donnees_api
 
 
 def controler_colonnes(donnees: pd.DataFrame) -> None:
@@ -169,6 +146,12 @@ def preparer_donnees(donnees_api: list[dict]) -> pd.DataFrame:
     # Le nom de colonne de la table brute historique est `nom_dep`.
     donnees_incendie = donnees_incendie.rename(columns={"dep_nom": "nom_dep"})
 
+    return preparer_publications(donnees_incendie)
+
+
+def preparer_publications(donnees: pd.DataFrame) -> pd.DataFrame:
+    """Contrôle les publications de l'API ou des archives avant leur chargement."""
+    donnees_incendie = donnees.copy()
     donnees_incendie["reference_time"] = pd.to_datetime(
         donnees_incendie["reference_time"],
         utc=True,
@@ -182,11 +165,15 @@ def preparer_donnees(donnees_api: list[dict]) -> pd.DataFrame:
     )
     convertir_niveaux_danger(donnees_incendie)
 
-    if donnees_incendie["dep_code"].duplicated().any():
-        raise ValueError("Un département est présent plusieurs fois.")
-
-    if donnees_incendie["reference_time"].nunique() != 1:
-        raise ValueError("Plusieurs dates de publication sont présentes.")
+    if donnees_incendie.empty or donnees_incendie["reference_time"].isna().any():
+        raise ValueError("Publication vide ou date manquante.")
+    if donnees_incendie["nom_dep"].isna().any() or donnees_incendie["nom_dep"].eq("").any():
+        raise ValueError("Un nom de département est manquant.")
+    if donnees_incendie.duplicated(["reference_time", "dep_code"]).any():
+        raise ValueError("Un département est présent plusieurs fois dans une publication.")
+    volumes = donnees_incendie.groupby("reference_time")["dep_code"].nunique()
+    if not volumes.eq(NOMBRE_DEPARTEMENTS_ATTENDU).all():
+        raise ValueError("Chaque publication doit contenir les 96 départements.")
 
     donnees_incendie["insere_a"] = datetime.now(timezone.utc)
     donnees_incendie["row_hash"] = [
@@ -194,7 +181,9 @@ def preparer_donnees(donnees_api: list[dict]) -> pd.DataFrame:
         for ligne in donnees_incendie.itertuples()
     ]
 
-    return donnees_incendie.sort_values("dep_code").reset_index(drop=True)
+    return donnees_incendie[COLONNES_BIGQUERY].sort_values(
+        ["reference_time", "dep_code"]
+    ).reset_index(drop=True)
 
 
 def enregistrer_parquet(donnees_incendie: pd.DataFrame) -> Path:
@@ -203,6 +192,7 @@ def enregistrer_parquet(donnees_incendie: pd.DataFrame) -> Path:
     reference_time = donnees_incendie["reference_time"].iloc[0]
     horodatage = reference_time.strftime("%Y%m%dT%H%M%SZ")
     fichier_parquet = DOSSIER_INCENDIE / f"meteo_forets_{horodatage}.parquet"
+    fichier_parquet.parent.mkdir(parents=True, exist_ok=True)
     donnees_incendie.to_parquet(fichier_parquet, index=False)
     return fichier_parquet
 
@@ -218,53 +208,12 @@ def preparer_datasets_bigquery(client: bigquery.Client) -> None:
         dataset.location = localisation
         client.create_dataset(dataset, exists_ok=True)
 
-    print(f"✅ Datasets prêts dans la région {localisation}.")
+    logger.info("Datasets prêts dans la région %s.", localisation)
 
 
-def fusionner_historique_bigquery(client: bigquery.Client) -> None:
-    """Ajoute la publication à l'historique sans créer de doublon."""
-
-    colonnes_modifiees = [
-        colonne for colonne in COLONNES_BIGQUERY if colonne != "row_hash"
-    ]
-    mises_a_jour = ",\n        ".join(
-        f"{colonne} = source.{colonne}" for colonne in colonnes_modifiees
+def fusionner_historique_bigquery(client: bigquery.Client, table_landing=TABLE_LANDING) -> None:
+    """Fusionne une publication ou un import d'archives validé."""
+    fusionner_historique(
+        client, table_landing, TABLE_HISTORIQUE, COLONNES_BIGQUERY,
+        "reference_time", "dep_code",
     )
-    colonnes = ", ".join(COLONNES_BIGQUERY)
-    valeurs = ", ".join(f"source.{colonne}" for colonne in COLONNES_BIGQUERY)
-
-    requete = f"""
-    CREATE TABLE IF NOT EXISTS `{TABLE_HISTORIQUE}`
-    PARTITION BY DATE(reference_time)
-    CLUSTER BY dep_code
-    AS
-    SELECT *
-    FROM `{TABLE_LANDING}`
-    WHERE FALSE;
-
-    MERGE `{TABLE_HISTORIQUE}` AS cible
-    USING `{TABLE_LANDING}` AS source
-      ON cible.row_hash = source.row_hash
-
-    WHEN MATCHED THEN
-      UPDATE SET
-        {mises_a_jour}
-
-    WHEN NOT MATCHED THEN
-      INSERT ({colonnes})
-      VALUES ({valeurs});
-    """
-    client.query(requete).result()
-
-    controle = f"""
-        SELECT
-            COUNT(*) AS nombre_lignes,
-            COUNT(DISTINCT row_hash) AS nombre_cles
-        FROM `{TABLE_HISTORIQUE}`
-    """
-    resultat = list(client.query(controle).result())[0]
-
-    if resultat.nombre_lignes != resultat.nombre_cles:
-        raise ValueError("La table historique contient des doublons.")
-
-    print(f"✅ Historique incendie mis à jour : {resultat.nombre_lignes} lignes.")

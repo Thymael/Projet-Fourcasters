@@ -1,0 +1,10 @@
+fourcasters:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: fourcasters-openmeteo-loick
+      dataset: openmeteo_analyse
+      threads: 4
+      location: US

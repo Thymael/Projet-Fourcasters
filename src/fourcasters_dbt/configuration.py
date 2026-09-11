@@ -12,6 +12,7 @@ DOSSIER_OPENMETEO = RACINE_PROJET / "data" / "actualisation"
 DOSSIER_INCENDIE = RACINE_PROJET / "data" / "actualisation_incendie"
 
 PROJET_GCP = "fourcasters-openmeteo-loick"
+DATASET_ANALYSE = "openmeteo_analyse"
 NOM_BUCKET = "fourcasters-openmeteo-loick-data"
 CLE_GCP_PAR_DEFAUT = RACINE_PROJET.parent / "cle_bigquery.json"
 
@@ -30,6 +31,4 @@ def configurer_google_cloud() -> None:
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(CLE_GCP_PAR_DEFAUT)
         return
 
-    raise FileNotFoundError(
-        "Clé Google Cloud introuvable. Ajoute son chemin dans le fichier .env."
-    )
+    # Sans fichier, les clients Google cherchent une identité ADC (gcloud, CI...).
