@@ -120,7 +120,7 @@ Les niveaux 1 et 2 sont les mieux reconnus. Les niveaux 3 et surtout 4 restent d
 Le modèle est uniquement un prototype. Il n’est pas déployé et il n’est pas réentraîné automatiquement chaque jour.
 
 ### GASPILLAGES REPÉRÉS
-* Une forêt de 200 arbres demande plus de calcul qu’un modèle très simple.
+* Une forêt de 200 arbres demande plus de calcul qu’un modèle très simple. La comparaison montre cependant que le Random Forest obtient de meilleurs résultats que les modèles plus simples testés.
 * Relancer l’entraînement plusieurs fois sans modification des données ou du modèle serait inutile.
 * Une recherche automatique très large de paramètres pourrait entraîner des dizaines ou centaines de modèles pour un gain limité.
 * Les données sont rechargées depuis BigQuery à chaque lancement du script.
@@ -130,13 +130,17 @@ Le modèle est uniquement un prototype. Il n’est pas déployé et il n’est p
   **Bénéfice attendu :** éviter des calculs sans intérêt.
 * Ne pas lancer de grosse recherche automatique de paramètres tant que les limites principales viennent surtout du manque d’exemples des niveaux 3 et 4.
   **Bénéfice attendu :** éviter de consommer beaucoup de calcul pour optimiser un jeu de données encore limité.
-* Mesurer ponctuellement la consommation du modèle avec CodeCarbon.
+* Une mesure ponctuelle a été réalisée avec CodeCarbon le 11 septembre 2026. L’entraînement a été estimé à environ 0,000002 kg de CO₂.
   **Bénéfice attendu :** avoir une mesure réelle plutôt qu’une estimation de l’impact du Machine Learning.
-* Comparer éventuellement le modèle actuel avec une version plus petite, par exemple avec moins d’arbres.
+* Le Random Forest a été comparé à une classe majoritaire, une régression logistique et un arbre de décision afin de vérifier si sa complexité apportait réellement un gain.
   **Bénéfice attendu :** vérifier si un modèle plus léger donne des résultats proches.
+    Classe majoritaire        Accuracy : 32,35 % | F1 macro : 0,122
+    Régression logistique     Accuracy : 29,06 % | F1 macro : 0,253
+    Arbre de décision         Accuracy : 37,46 % | F1 macro : 0,275
+    Random Forest             Accuracy : 52,59 % | F1 macro : 0,311
 
 ### CONCLUSION
-Le modèle reste relativement simple pour un premier prototype.
+Le Random Forest est plus coûteux qu’un arbre de décision seul, mais les tests montrent ici que cette complexité apporte un gain réel.
 Nous n’avons pas cherché à entraîner de nombreux modèles ou à lancer une grosse optimisation automatique.
 La priorité reste surtout d’améliorer les données disponibles pour les niveaux de danger élevés plutôt que d’augmenter la puissance de calcul.
 
@@ -195,6 +199,8 @@ En revanche, plusieurs choix limitent déjà les traitements inutiles :
 * Machine Learning relativement simple ;
 * absence de recherche massive de paramètres ;
 * entraînement du modèle uniquement à la demande ;
+* comparaison avec des modèles plus simples ;
+* mesure ponctuelle de l’impact avec CodeCarbon;
 * limitation du projet à la France métropolitaine et aux données nécessaires à notre sujet.
 
 Pour notre projet étudiant, le niveau de sobriété nous semble donc **plutôt satisfaisant**, tout en gardant plusieurs pistes d’amélioration.
