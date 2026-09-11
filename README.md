@@ -331,19 +331,6 @@ Deux workflows GitHub Actions sont utilisés.
 
 Le workflow peut également être lancé manuellement depuis GitHub.
 
-### Vérification du projet
-
-`tests.yml` est lancé lors des Pull Requests et des modifications de `main`.
-
-Il exécute :
-
-```text
-pytest
-dbt parse
-```
-
-Il permet de détecter rapidement une erreur dans le code ou dans le projet dbt sans modifier les données BigQuery.
-
 ## Documentation complémentaire
 
 Le dossier `DOCUMENTATION/` contient notamment :
@@ -357,11 +344,11 @@ Le dossier `DOCUMENTATION/` contient notamment :
 
 ## Équipe
 
-Projet réalisé par :
+Projet initialisé en groupe, puis réalisé individuellement, par :
 
-* Angèle ;
-* Christophe ;
-* Eddy ;
-* Loïck.
+* Angèle T.
+* Christophe L.
+* Eddy H.
+* Loïck M..
 
 Projet développé dans le cadre de la formation Data Analyst de la Wild Code School.
