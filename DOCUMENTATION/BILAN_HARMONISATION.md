@@ -42,6 +42,7 @@ qui ne sont pas sur GitHub ne font donc pas partie de cette revue.
 | Reprise Open-Meteo | une recherche fondée sur la dernière date pouvait laisser des trous plus anciens | recherche de la première journée absente ou incomplète depuis août 2026, avec rattrapage limité à 7 jours |
 | Fichiers de reprise | un volume correct ne suffisait pas à valider les données | contrôle des codes attendus, des dates, des variables et des hashes avant chargement |
 | Météo-France | validations réparties entre API et archives | même contrôle des 96 départements, des publications et des niveaux entiers de 1 à 4 |
+| Recouvrement Météo-France | l'API et l'archive 2026 avaient chargé 102 bulletins avec deux formats de hash | une ligne conservée par horodatage et département, selon le chargement le plus récent ; préparation commune aux prochains imports |
 | Historique BigQuery | contrôles et fusion séparés | lot unique contrôlé, MERGE et vérification finale dans une transaction |
 | Import des archives | table de réception partagée avec la collecte quotidienne | table dédiée aux archives |
 | Jointure Power BI | toutes les journées antérieures étaient jointes avant de garder la dernière | périodes de validité avec `LEAD`, mêmes colonnes et mêmes résultats sur le jeu d'essai |

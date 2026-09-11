@@ -47,11 +47,13 @@ SELECT
 FROM `fourcasters-openmeteo-loick.openmeteo_raw.meteo_journaliere`;
 
 
--- CTRL 04 : état général Météo-France
--- Attendu : autant de lignes que de clés et 96 départements.
+-- CTRL 04 : état général de la source Météo-France
+-- Les anciennes collectes API et archives peuvent se recouvrir avec deux hashes.
 SELECT
     COUNT(*) AS lignes,
-    COUNT(DISTINCT row_hash) AS cles_uniques,
+    COUNT(DISTINCT CONCAT(
+        CAST(reference_time AS STRING), '|', TRIM(dep_code)
+    )) AS cles_metier_uniques,
     COUNTIF(row_hash IS NULL) AS hash_manquants,
     COUNT(DISTINCT reference_time) AS publications,
     COUNT(DISTINCT dep_code) AS departements,
@@ -60,14 +62,14 @@ SELECT
 FROM `fourcasters-openmeteo-loick.meteofrance_raw.meteo_forets`;
 
 
--- CTRL 05 : publications Météo-France incomplètes
+-- CTRL 05 : publications Météo-France incomplètes après déduplication dbt
 -- Attendu : aucune ligne.
 SELECT
     reference_time,
     COUNT(*) AS lignes,
     COUNT(DISTINCT row_hash) AS cles_uniques,
-    COUNT(DISTINCT dep_code) AS departements
-FROM `fourcasters-openmeteo-loick.meteofrance_raw.meteo_forets`
+    COUNT(DISTINCT numero_departement) AS departements
+FROM `fourcasters-openmeteo-loick.openmeteo_analyse.stg_meteo_forets`
 GROUP BY reference_time
 HAVING lignes != 96 OR cles_uniques != 96 OR departements != 96
 ORDER BY reference_time DESC;

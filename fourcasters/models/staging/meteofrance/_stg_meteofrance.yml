@@ -2,7 +2,9 @@ version: 2
 
 models:
   - name: stg_meteo_forets
-    description: "Données Météo-France nettoyées pour l'analyse."
+    description: >
+      Données Météo-France nettoyées pour l'analyse. Le chargement le plus récent
+      est conservé lorsque l'API et une archive contiennent le même bulletin.
     columns:
       - name: row_hash
         data_tests: [not_null, unique]

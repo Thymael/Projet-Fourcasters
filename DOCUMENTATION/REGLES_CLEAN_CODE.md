@@ -21,6 +21,8 @@ Nous gardons des fonctions courtes, des noms explicites et un parcours facile
 Les collectes sont validées avant l'envoi. Le chargement remplace une table de
 réception, jamais l'historique. Le `row_hash` identifie une date et un point
 Open-Meteo, ou un horodatage de bulletin et un département Météo-France.
+L'API et les archives utilisent maintenant la même fonction de préparation.
+Le staging retire les anciens doublons créés par leur recouvrement.
 
 La fusion et son contrôle final partagent une transaction BigQuery. Si une
 instruction échoue avant `COMMIT`, BigQuery annule cette transaction. Les
