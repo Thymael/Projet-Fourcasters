@@ -40,43 +40,82 @@ from fourcasters_dbt.openmeteo import (
 
 logger = logging.getLogger(__name__)
 NOMBRE_POINTS_ATTENDU = 360
-MAX_JOURS_PAR_EXECUTION = 7
 
 
-def actualiser_journee_openmeteo(communes, date_a_recuperer) -> None:
-    """Collecte une journée complète avant de la charger."""
+def actualiser_journee_openmeteo(
+    communes,
+    date_a_recuperer,
+) -> None:
+    """Collecte, contrôle et charge une journée Open-Meteo."""
 
-    fichier_csv = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.csv"
-    fichier_parquet = DOSSIER_OPENMETEO / f"openmeteo_{date_a_recuperer}.parquet"
+    fichier_parquet = (
+        DOSSIER_OPENMETEO
+        / f"openmeteo_{date_a_recuperer}.parquet"
+    )
 
-    collecter_communes(communes, date_a_recuperer, fichier_csv)
-    actualisation = creer_parquet(fichier_csv, fichier_parquet, communes, date_a_recuperer)
+    donnees = collecter_communes(
+        communes,
+        date_a_recuperer,
+    )
 
-    logger.info("✅ Collecte terminée : %s/%s communes", len(actualisation), len(communes))
+    actualisation = creer_parquet(
+        donnees,
+        fichier_parquet,
+        communes,
+        date_a_recuperer,
+    )
+
+    logger.info(
+        "✅ Collecte terminée : %s/%s communes",
+        len(actualisation),
+        len(communes),
+    )
+
     logger.info("Parquet : %s", fichier_parquet)
 
-    logger.info("☁️  Envoi vers Google Cloud...")
-    chemin_gcs = f"{DOSSIER_GCS_OPENMETEO}/{fichier_parquet.name}"
-    adresse_gcs = envoyer_parquet_gcs(fichier_parquet, chemin_gcs)
-    logger.info("Fichier envoyé : %s", adresse_gcs)
+    logger.info("☁️ Envoi vers Google Cloud...")
+
+    chemin_gcs = (
+        f"{DOSSIER_GCS_OPENMETEO}/"
+        f"{fichier_parquet.name}"
+    )
+
+    adresse_gcs = envoyer_parquet_gcs(
+        fichier_parquet,
+        chemin_gcs,
+    )
+
+    logger.info(
+        "Fichier envoyé : %s",
+        adresse_gcs,
+    )
+
     charger_parquet_bigquery(
         adresse_gcs,
         TABLE_LANDING_OPENMETEO,
         len(communes),
     )
 
-    client_bigquery = bigquery.Client(project=PROJET_GCP)
-    fusionner_historique_openmeteo(client_bigquery)
+    client_bigquery = bigquery.Client(
+        project=PROJET_GCP
+    )
+
+    fusionner_historique_openmeteo(
+        client_bigquery
+    )
 
 
 def main_openmeteo() -> None:
-    """Rattrape les journées manquantes, au maximum sept par exécution."""
+    """Récupère une seule journée manquante à chaque exécution."""
     logger.info("🌦️ Actualisation Open-Meteo")
     configurer_google_cloud()
     DOSSIER_OPENMETEO.mkdir(parents=True, exist_ok=True)
     communes = pd.read_csv(
         FICHIER_COMMUNES,
-        dtype={"numero_departement": "string", "code_insee": "string"},
+        dtype={
+            "numero_departement": "string",
+            "code_insee": "string",
+        },
     )
     communes["code_insee"] = communes["code_insee"].str.strip()
     if (
@@ -84,14 +123,13 @@ def main_openmeteo() -> None:
         or communes["code_insee"].isna().any()
         or communes["code_insee"].duplicated().any()
     ):
-        raise ValueError("Le référentiel doit contenir 360 codes de commune distincts.")
-    for _ in range(MAX_JOURS_PAR_EXECUTION):
-        jour = trouver_date_a_recuperer(len(communes))
-        if jour is None:
-            return
-        actualiser_journee_openmeteo(communes, jour)
-    if trouver_date_a_recuperer(len(communes)) is not None:
-        logger.warning("⏳ Sept journées récupérées. Une prochaine exécution poursuivra le rattrapage.")
+        raise ValueError(
+            "Le référentiel doit contenir 360 codes de commune distincts."
+        )
+    jour = trouver_date_a_recuperer(len(communes))
+    if jour is None:
+        return
+    actualiser_journee_openmeteo(communes, jour)
 
 
 def main_incendie(mode_local: bool = False) -> None:
