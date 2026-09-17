@@ -2,7 +2,7 @@ name: Actualisation quotidienne Fourcasters
 
 on:
   schedule:
-    - cron: "0 4 * * *"
+    - cron: "0 3 * * *"
       timezone: "Europe/Paris"
   workflow_dispatch:
 
