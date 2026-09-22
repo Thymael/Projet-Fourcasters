@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.pipeline import Pipeline
 
 from fourcasters_dbt.ml_incendie import (
     COLONNES_MODELE,
@@ -30,12 +31,10 @@ def creer_donnees_test():
 def test_creer_modele():
     modele = creer_modele()
 
-    assert isinstance(
-        modele,
-        RandomForestClassifier,
-    )
-
-    assert modele.random_state == 42
+    assert isinstance(modele, Pipeline)
+    foret = modele.named_steps["modele"]
+    assert isinstance(foret, RandomForestClassifier)
+    assert foret.random_state == 42
 
 
 def test_preparer_donnees():

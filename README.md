@@ -1,136 +1,72 @@
 # Fourcasters
 
-[![Actualisation quotidienne](https://github.com/Thymael/Projet-Fourcasters/actions/workflows/pipeline.yml/badge.svg)](https://github.com/Thymael/Projet-Fourcasters/actions/workflows/pipeline.yml)
-
 Projet de fin de formation Data Analyst à la Wild Code School.
 
-Fourcasters rapproche des données météorologiques historiques et le niveau de danger incendie en France métropolitaine.
+Fourcasters rapproche des données météo historiques et les niveaux de danger de la **Météo des forêts** en France métropolitaine. Le projet couvre toute la chaîne vue pendant la formation : collecte Python, stockage dans Google Cloud et BigQuery, transformations dbt, analyse, Power BI et un premier modèle de Machine Learning présenté avec Streamlit.
 
-Le projet permet de travailler sur plusieurs parties vues pendant la formation :
+> Le modèle ML cherche à reproduire un niveau de danger Météo-France. Il ne prédit pas les départs de feu réels et ne doit pas être utilisé comme outil opérationnel.
 
-* collecte de données ;
-* Python ;
-* BigQuery ;
-* dbt ;
-* tests ;
-* automatisation avec GitHub Actions ;
-* analyse exploratoire ;
-* Power BI ;
-* premier modèle de Machine Learning.
+## Données
 
-## Données utilisées
+| Source | Contenu | Grain |
+| --- | --- | --- |
+| Open-Meteo / ERA5-Seamless | Données météorologiques historiques | 1 point géographique × 1 jour |
+| Météo-France | Niveau de danger J1 et J2 | 1 département × 1 publication × 1 échéance |
 
-| Source                     | Contenu                                 | Une ligne représente                            |
-| -------------------------- | --------------------------------------- | ----------------------------------------------- |
-| Open-Meteo / ERA5-Seamless | Données météorologiques historiques     | un point géographique et un jour                |
-| Météo-France               | Niveau de danger de la Météo des forêts | un département, une publication et une échéance |
+Le référentiel contient **360 points** répartis en France métropolitaine. Les données Météo-France couvrent **96 départements**.
 
-Le projet utilise 360 points répartis en France métropolitaine.
+## Architecture
 
-Les données Open-Meteo utilisées sont des données issues de réanalyses. Les 360 points ne correspondent donc pas à 360 stations météorologiques physiques.
+```text
+Open-Meteo + Météo-France
+          ↓
+        Python
+          ↓
+ CSV / Parquet temporaire
+          ↓
+ Google Cloud Storage
+          ↓
+       BigQuery
+          ↓
+          dbt
+       ↙      ↘
+ Power BI   Machine Learning
+               ↓
+          pipeline.pkl
+               ↓
+           Streamlit
+```
 
-Pour le danger incendie, Météo-France fournit quatre niveaux de danger à J1 et J2 pour les 96 départements métropolitains.
+La collecte quotidienne et le ML sont volontairement séparés : GitHub Actions actualise les données et lance dbt, tandis que l'entraînement du modèle est lancé à la demande.
 
-Ces niveaux représentent un **danger prévu** et non les départs de feu réellement observés.
-
-## Organisation du projet
+## Dossiers principaux
 
 ```text
 Projet_Fourcasters/
-│
-├── .github/
-│   └── workflows/
-│       ├── pipeline.yml
-│       └── tests.yml
-│
+├── .github/workflows/pipeline.yml
 ├── DOCUMENTATION/
-│   ├── CONTROLES_BIGQUERY_FOURCASTERS.sql
-│   ├── Dépendance technologique.md
-│   ├── Face à l'IA Act.md
-│   ├── L'audit de sobriété.md
-│   ├── La note de vigilance éthique.md
-│   └── Machine Learning.md
-│
-├── fourcasters/
-│   ├── models/
-│   ├── seeds/
-│   └── tests/
-│
-├── notebooks/
-│   └── 01_eda_fourcasters.ipynb
-│
-├── scripts/
-│   ├── actualiser_fourcasters.py
-│   ├── importer_archives_meteofrance.py
-│   ├── entrainer_ml_incendie.py
-│   ├── comparer_modeles_ml.py
-│   └── mesurer_co2_ml.py
-│
-├── src/
-│   └── fourcasters_dbt/
-│
-├── tests/
-│
-├── .env.example
-├── .gitignore
+├── fourcasters/              # projet dbt
+├── notebooks/                # EDA
+├── scripts/                  # scripts à lancer
+├── src/fourcasters_dbt/      # fonctions Python
+├── tests/                    # tests Python
+├── streamlit_app.py          # démonstration du modèle
 ├── pyproject.toml
-├── uv.lock
 └── README.md
 ```
-
-### Rôle des principaux dossiers
-
-| Dossier                | Utilité                                     |
-| ---------------------- | ------------------------------------------- |
-| `scripts/`             | commandes principales du projet             |
-| `src/fourcasters_dbt/` | fonctions Python utilisées par les scripts  |
-| `fourcasters/`         | projet dbt, modèles SQL, seeds et tests dbt |
-| `tests/`               | tests Python                                |
-| `notebooks/`           | analyse exploratoire                        |
-| `DOCUMENTATION/`       | documents complémentaires du projet         |
-
-## Fonctionnement général
-
-Le pipeline suit globalement les étapes suivantes :
-
-```text
-API
-↓
-Python
-↓
-CSV / Parquet temporaire
-↓
-Google Cloud Storage
-↓
-BigQuery
-↓
-dbt
-↓
-Power BI / Machine Learning
-```
-
-Les fichiers intermédiaires permettent notamment de contrôler les données avant de modifier les tables historiques.
 
 ## Installation
 
 Le projet utilise Python 3.12 et `uv`.
 
-Depuis la racine du projet :
-
 ```bash
-uv sync --frozen
+uv sync
 ```
 
-Créer ensuite le fichier `.env` à partir de l'exemple :
+Créer ensuite le fichier `.env` à partir de `.env.example` et renseigner :
 
-```bash
-cp .env.example .env
-```
-
-Puis renseigner les accès nécessaires :
-
-* Google Cloud ;
-* API Météo-France.
+- la clé API Météo-France ;
+- les identifiants Google Cloud si nécessaire en local.
 
 Pour dbt :
 
@@ -139,178 +75,132 @@ mkdir -p ~/.dbt
 cp fourcasters/profiles.example.yml ~/.dbt/profiles.yml
 ```
 
-Le projet BigQuery utilise actuellement la région `US`.
+## Actualiser les données
 
-## Actualisation des données
-
-Pour lancer les deux collectes :
+Les deux sources :
 
 ```bash
 uv run python scripts/actualiser_fourcasters.py
 ```
 
-Pour lancer uniquement Open-Meteo :
+Open-Meteo uniquement :
 
 ```bash
 uv run python scripts/actualiser_fourcasters.py --openmeteo-only
 ```
 
-Pour lancer uniquement Météo-France :
+Météo-France uniquement :
 
 ```bash
 uv run python scripts/actualiser_fourcasters.py --incendie-only
 ```
 
-Il est également possible de tester la collecte Météo-France sans envoyer les données dans Google Cloud :
+Test local de Météo-France sans chargement Cloud :
 
 ```bash
 uv run python scripts/actualiser_fourcasters.py --incendie-only --local-only
 ```
 
-Open-Meteo recherche la première journée absente ou incomplète dans BigQuery.
-
-Un décalage volontaire de six jours est conservé avant de récupérer une nouvelle journée.
-
-La collecte est réalisée par lots de communes et peut reprendre à partir d'un CSV temporaire si elle est interrompue.
-
-## Archives Météo-France
-
-L'import des anciennes données Météo-France est séparé du pipeline quotidien.
+L'import des archives Météo-France est séparé du pipeline quotidien :
 
 ```bash
 uv run python scripts/importer_archives_meteofrance.py --annees 2024 2025 2026
 ```
 
-Ce script n'a normalement pas besoin d'être exécuté chaque jour.
-
 ## dbt
-
-Après la collecte, dbt prépare les données utilisées pour l'analyse, Power BI et le Machine Learning.
 
 ```bash
 uv run dbt build --project-dir fourcasters
 ```
 
-Le projet contient notamment :
+Les modèles suivent trois niveaux simples :
 
-* des modèles de staging ;
-* des tables intermédiaires ;
-* des dimensions ;
-* des tables de faits ;
-* des tables préparées pour Power BI ;
-* des tables préparées pour le Machine Learning.
+- **staging** : nettoyage des sources ;
+- **intermediate** : enrichissements et agrégations ;
+- **marts** : tables finales pour l'analyse, Power BI et le ML.
 
-Les tests dbt sont exécutés pendant le `dbt build`.
+Les tables ML sont volontairement séparées :
+
+- `ml_features_incendie` prépare les variables météo sans cible ;
+- `ml_train_incendie` ajoute ensuite le niveau Météo-France utilisé comme cible.
 
 ## Machine Learning
 
-Le projet contient un premier modèle permettant d'essayer de reproduire le niveau de danger Météo-France.
+Le modèle principal est un **Random Forest**. Il utilise un Pipeline scikit-learn :
 
-Le modèle principal est un Random Forest.
+```text
+SimpleImputer → RandomForestClassifier
+```
 
-Pour l'entraîner :
+Le découpage est chronologique : les dates les plus anciennes servent au train et les 20 % de dates les plus récentes au test. Deux jours sont laissés entre les deux périodes pour tenir compte des horizons J1 et J2.
+
+Entraîner et enregistrer le modèle :
 
 ```bash
 uv run python scripts/entrainer_ml_incendie.py
 ```
 
-Lors du test réalisé le 11 septembre 2026 :
+Le script crée `pipeline.pkl` à la racine du projet. Ce fichier contient le prétraitement et le modèle entraîné.
 
-| Indicateur             | Résultat |
-| ---------------------- | -------: |
-| Accuracy Random Forest |  52,59 % |
-| Classe majoritaire     |  32,35 % |
-| F1 macro               |    0,311 |
+Résultats obtenus lors du dernier test :
 
-Le modèle fonctionne surtout sur les niveaux 1 et 2.
+| Modèle | Accuracy | F1 macro |
+| --- | ---: | ---: |
+| Classe majoritaire | 38,43 % | — |
+| Régression logistique | 29,06 % | 0,253 |
+| Arbre de décision | 37,46 % | 0,275 |
+| Random Forest | **55,51 %** | **0,338** |
 
-Les niveaux 3 et 4 restent difficiles à reconnaître. Il s'agit donc uniquement d'un prototype et non d'un modèle destiné à une utilisation opérationnelle.
+Les niveaux 3 et 4 sont encore mal reconnus. Le modèle reste donc un prototype.
 
-### Comparaison avec des modèles plus simples
-
-Un script permet de comparer le Random Forest avec plusieurs modèles plus simples :
+Comparer les modèles :
 
 ```bash
 uv run python scripts/comparer_modeles_ml.py
 ```
 
-Résultats obtenus :
-
-| Modèle                |    Accuracy |  F1 macro |
-| --------------------- | ----------: | --------: |
-| Classe majoritaire    |     32,35 % |     0,122 |
-| Régression logistique |     29,06 % |     0,253 |
-| Arbre de décision     |     37,46 % |     0,275 |
-| Random Forest         | **52,59 %** | **0,311** |
-
-Le Random Forest a donc été conservé comme modèle principal.
-
-## Sobriété du Machine Learning
-
-CodeCarbon a été utilisé ponctuellement pour mesurer l'impact de l'entraînement.
+Mesurer ponctuellement l'impact de l'entraînement avec CodeCarbon :
 
 ```bash
 uv run --group analyse python scripts/mesurer_co2_ml.py
 ```
 
-La mesure réalisée le 11 septembre 2026 a donné environ :
+## Streamlit
 
-```text
-0,000002 kg de CO2
-```
+Streamlit sert uniquement à présenter le modèle ML de façon interactive. L'application utilise la période de test et compare la prédiction du modèle avec le niveau officiel Météo-France.
 
-Cette valeur reste une estimation dépendante de la machine et du contexte d'exécution.
-
-## Analyse exploratoire
-
-Le notebook principal se trouve dans :
-
-```text
-notebooks/01_eda_fourcasters.ipynb
-```
-
-Pour le lancer :
+Ajouter Streamlit une première fois avec `uv`, puis lancer l'application :
 
 ```bash
-uv sync --frozen --group analyse
-uv run jupyter notebook notebooks/01_eda_fourcasters.ipynb
+uv add --group app streamlit
+uv run streamlit run streamlit_app.py
 ```
+
+La première commande ajoute Streamlit au projet et met à jour `uv.lock`. Elle n'est à faire qu'une fois.
+
+Il faut avoir créé `pipeline.pkl` auparavant avec le script d'entraînement.
 
 ## Power BI
 
-Power BI utilise les tables préparées dans BigQuery par dbt.
+Power BI reste la couche de visualisation du projet pour l'analyse météo et le danger incendie. Il lit les tables préparées par dbt dans BigQuery.
 
-Le rapport final contient cinq pages autour :
-
-* de la météo générale ;
-* des territoires ;
-* de l'évolution temporelle ;
-* du danger incendie ;
-* du détail par département.
-
-Les données météo et incendie n'ont pas la même granularité.
-
-La météo est disponible par point géographique et par jour, tandis que le danger incendie est fourni au niveau du département.
+Le ML n'est pas exécuté dans Power BI : la démonstration du modèle est faite dans Streamlit.
 
 ## Tests
 
-Les tests Python peuvent être lancés avec :
+Tests Python :
 
 ```bash
 uv run pytest -q
 ```
 
-Le dossier `tests/` contrôle principalement :
+Tests et modèles dbt :
 
-* Open-Meteo ;
-* les appels HTTP ;
-* les archives Météo-France ;
-* la collecte incendie ;
-* le Machine Learning.
+```bash
+uv run dbt build --project-dir fourcasters
+```
 
-Le dossier `fourcasters/tests/` contient les tests SQL spécifiques à dbt.
-
-Pour vérifier uniquement la structure du projet dbt :
+Contrôle rapide de la structure dbt :
 
 ```bash
 uv run dbt parse --project-dir fourcasters
@@ -318,37 +208,25 @@ uv run dbt parse --project-dir fourcasters
 
 ## Automatisation
 
-Deux workflows GitHub Actions sont utilisés.
+`.github/workflows/pipeline.yml` actualise chaque jour :
 
-### Actualisation quotidienne
+1. Open-Meteo ;
+2. Météo-France ;
+3. les tables BigQuery ;
+4. les modèles et tests dbt.
 
-`pipeline.yml` lance automatiquement :
+Le modèle ML n'est pas réentraîné chaque jour. L'entraînement reste volontairement manuel pour ce projet étudiant.
 
-1. la collecte Open-Meteo ;
-2. la collecte Météo-France ;
-3. le chargement dans Google Cloud et BigQuery ;
-4. le `dbt build`.
+## Documentation
 
-Le workflow peut également être lancé manuellement depuis GitHub.
+Le dossier `DOCUMENTATION/` contient :
 
-## Documentation complémentaire
-
-Le dossier `DOCUMENTATION/` contient notamment :
-
-* un audit de sobriété numérique ;
-* une note de vigilance éthique ;
-* une réflexion sur la dépendance technologique ;
-* un point sur l'IA Act ;
-* les résultats de comparaison des modèles de Machine Learning ;
-* des requêtes de contrôle BigQuery.
+- les requêtes de contrôle BigQuery ;
+- l'audit de sobriété ;
+- la note de vigilance éthique ;
+- la réflexion sur la dépendance technologique ;
+- le point sur l'AI Act.
 
 ## Équipe
 
-Projet initialisé en groupe, puis réalisé individuellement, par :
-
-* Angèle T.
-* Christophe L.
-* Eddy H.
-* Loïck M..
-
-Projet développé dans le cadre de la formation Data Analyst de la Wild Code School.
+Projet initialisé en groupe puis poursuivi individuellement dans le cadre de la formation Data Analyst : Angèle T., Christophe L., Eddy H. et Loïck M.
