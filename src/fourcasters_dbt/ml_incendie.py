@@ -124,11 +124,7 @@ def creer_modele() -> Pipeline:
                     n_estimators=200,
                     random_state=42,
                     class_weight="balanced",
-                    n_jobs=-1,
-                ),
-            ),
-        ]
-    )
+                    n_jobs=-1,),),])
 
 
 def entrainer_modele(donnees: pd.DataFrame):
