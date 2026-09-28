@@ -585,6 +585,15 @@ with tab_simulation:
             + departements_ref["departement"]
         )
 
+        with st.expander("Comment lire le simulateur ?"):
+            st.write(
+                "Le niveau **Aujourd'hui** est appris à partir du niveau J1 "
+                "publié la veille pour cette date. Les niveaux **J+1** et "
+                "**J+2** correspondent aux horizons du bulletin publié le jour "
+                "de référence. Le modèle utilise la météo saisie sur le point "
+                "choisi et produit une estimation au niveau du département."
+            )
+
         with st.form("formulaire_simulation"):
             localisation_1, localisation_2 = st.columns([1, 1.45])
 
