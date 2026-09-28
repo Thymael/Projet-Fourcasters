@@ -153,3 +153,41 @@ models:
               arguments:
                 values: [1, 2, 3, 4]
                 quote: false
+
+  - name: ml_train_simulation_incendie
+    description: >-
+      Jeu d'apprentissage du simulateur Streamlit. Il relie la météo d'un point
+      du référentiel aux niveaux de danger départementaux pour J0, J1 et J2.
+    columns:
+      - name: id_simulation
+        data_tests: [not_null, unique]
+      - name: date_meteo
+        data_tests: [not_null]
+      - name: code_insee
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_commune')
+                field: code_insee
+      - name: numero_departement
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_departement')
+                field: numero_departement
+      - name: horizon_jours
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1, 2]
+                quote: false
+      - name: cible_niveau_danger
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+                quote: false
