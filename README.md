@@ -126,6 +126,11 @@ Lancer Streamlit :
 uv run python -m streamlit run streamlit_app.py
 ```
 
+L'application contient trois parties :
+- **Cas historique** : comparaison ponctuelle entre la prédiction et Météo-France ;
+- **Résultats ML** : bilan du modèle sur la période de test 2026, matrice de confusion et tableau prédiction / réalité ;
+- **Simulateur météo** : saisie manuelle des conditions météo sur un des 360 points, avec estimation J0 / J+1 / J+2.
+
 ## Structure du projet
 
 ```text
