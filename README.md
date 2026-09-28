@@ -137,8 +137,9 @@ Projet_Fourcasters/
 ├── scripts/                  # scripts à lancer
 ├── src/fourcasters_dbt/      # fonctions Python
 ├── tests/                    # tests Python
-├── pipeline.pkl              # modèle ML entraîné
-├── streamlit_app.py          # démonstration du modèle
+├── pipeline.pkl              # modèle ML historique
+├── pipeline_simulation.pkl   # modèle du simulateur manuel, après entraînement
+├── streamlit_app.py          # application historique + simulateur
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
@@ -164,7 +165,8 @@ Les modèles suivent trois niveaux simples :
 Les tables ML sont séparées :
 
 - `ml_features_incendie` prépare les variables météo sans cible ;
-- `ml_train_incendie` ajoute le niveau Météo-France utilisé comme cible.
+- `ml_train_incendie` ajoute le niveau Météo-France utilisé comme cible ;
+- `ml_train_simulation_incendie` prépare un second jeu d'apprentissage pour le simulateur météo J0 / J+1 / J+2.
 
 ## Power BI
 
@@ -191,6 +193,14 @@ uv run python scripts/entrainer_ml_incendie.py
 ```
 
 Le script crée `pipeline.pkl` à la racine du projet.
+
+Le simulateur manuel Streamlit utilise un second modèle. Après un `dbt build`, l'entraîner avec :
+
+```bash
+uv run python scripts/entrainer_ml_simulation.py
+```
+
+Ce script crée `pipeline_simulation.pkl`. Le modèle utilise le point météo sélectionné (latitude / longitude) et les conditions saisies pour estimer un niveau départemental pour aujourd'hui, J+1 et J+2.
 
 Résultats obtenus lors du dernier test :
 
