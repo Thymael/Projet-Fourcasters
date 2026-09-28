@@ -2,28 +2,64 @@
 
 ## À quoi sert le tableau de bord ?
 
-Le rapport Power BI sert à explorer les **niveaux de danger Météo-France** et les conditions météo associées par département.
+Le rapport Power BI sert à explorer les données météo du projet et les **niveaux de danger Météo-France** par territoire et dans le temps.
 
 Il ne présente pas la prédiction du modèle de Machine Learning. Le ML est montré séparément dans Streamlit.
 
+## Organisation du rapport
+
+Le rapport suit une lecture du général au détail :
+
+1. **Vue générale** : couverture des données, volumes et tendance générale.
+2. **Météo des territoires** : comparaison des conditions météo entre régions, départements et communes.
+3. **Évolution temporelle** : évolution et saisonnalité des principaux indicateurs météo.
+4. **Danger incendie** : niveaux de danger Météo-France et contexte météo associé.
+5. **Détail département** : fiche détaillée du territoire sélectionné.
+
+Chaque page répond à une question principale et évite de multiplier les graphiques qui racontent la même chose.
+
 ## Source des données
 
-Power BI utilise principalement la table BigQuery :
+Power BI utilise les tables préparées par dbt dans BigQuery.
+
+Pour l'analyse du danger incendie, la table principale est :
 
 `pbi_risque_incendie`
 
-Cette table est construite par dbt à partir :
-- des niveaux de danger Météo-France ;
-- de la météo agrégée par département ;
-- du référentiel des départements.
+Elle rapproche :
+- les niveaux de danger Météo-France ;
+- la météo agrégée par département ;
+- le référentiel des départements.
 
-La météo associée à un bulletin correspond à la dernière journée disponible au plus tard à la date de publication. La colonne `retard_meteo_jours` permet de voir ce décalage.
+La météo associée à un bulletin correspond à la dernière journée disponible au plus tard à la date de publication. La colonne `retard_meteo_jours` permet de rendre ce décalage visible.
 
 ## Mise à jour
 
 Le pipeline GitHub Actions actualise quotidiennement Open-Meteo, Météo-France et les modèles dbt.
 
 La table BigQuery peut donc évoluer chaque jour. Le rapport Power BI doit ensuite être actualisé selon la configuration utilisée dans Power BI.
+
+## Filtres
+
+### Pages météo
+
+Les pages météo utilisent la période complète disponible dans `dim_date`.
+
+### Pages danger incendie
+
+Sur **Danger incendie** et **Détail département**, le filtre s'appelle **Période de prévision**.
+
+Il reste basé sur la dimension de dates commune au rapport afin de conserver les interactions entre météo et danger, mais les dates proposées sont limitées aux jours où la mesure **Nombre previsions** est supérieure à 0.
+
+Cela évite de sélectionner une période couverte par Open-Meteo mais absente des données de prévision Météo-France.
+
+Sur la page Danger incendie, les trois filtres principaux sont regroupés en haut :
+
+- Période de prévision ;
+- Département ;
+- Échéance J1/J2.
+
+Le filtre de période incendie n'est plus synchronisé avec les pages purement météo.
 
 ## Principaux indicateurs
 
@@ -48,24 +84,69 @@ La table BigQuery peut donc évoluer chaque jour. Le rapport Power BI doit ensui
 | 3 | Élevé |
 | 4 | Très élevé |
 
+Les couleurs associées aux niveaux ont une signification constante dans le rapport :
+
+- vert : niveau 1 ;
+- jaune : niveau 2 ;
+- orange : niveau 3 ;
+- rouge : niveau 4.
+
+La couleur n'est pas utilisée seule : le numéro et le libellé du niveau restent affichés.
+
 Ces niveaux sont ceux publiés par Météo-France. Fourcasters ne les remplace pas.
 
-## Utilisation
+## Principes de présentation utilisés
 
-La lecture du rapport se fait principalement par :
-- date ;
-- département ou région ;
-- échéance J1/J2 ;
-- niveau de danger ;
-- variables météo.
+Les graphiques ont été simplifiés pour faciliter la lecture :
 
-Les filtres exacts et la navigation dépendent de la version du fichier Power BI utilisée.
+- titres descriptifs : mesure puis axe d'analyse ;
+- suppression des quadrillages inutiles ;
+- légendes supprimées lorsqu'une seule série est affichée ;
+- étiquettes directement sur les barres de comparaison quand elles restent lisibles ;
+- axes conservés sur les graphiques temporels car l'échelle peut changer avec les filtres ;
+- tris décroissants sur les classements territoriaux ;
+- même couleur pour une même signification ;
+- rouge réservé à un niveau de danger élevé, pas à un simple élément à mettre en avant.
+
+Les pages utilisent des titres descriptifs plutôt que des conclusions figées, car les données changent avec les filtres et les actualisations.
+
+## Comment utiliser le rapport
+
+Commencer par la **Vue générale**, puis choisir la page correspondant à la question recherchée.
+
+Pour analyser le danger incendie :
+
+1. choisir une **Période de prévision** ;
+2. sélectionner éventuellement un département ;
+3. choisir J1 ou J2 si nécessaire ;
+4. lire d'abord les chiffres clés ;
+5. observer ensuite l'évolution des niveaux ;
+6. comparer les territoires ;
+7. ouvrir le détail d'un département si nécessaire.
+
+## Présenter un graphique à l'oral
+
+Pour les graphiques principaux, garder toujours le même ordre :
+
+1. annoncer ce que le graphique représente ;
+2. donner le constat principal avec un chiffre ;
+3. expliquer rapidement les axes et la période ;
+4. proposer une explication seulement si elle est réellement étayée par les données.
+
+Une présentation orale n'a pas besoin de commenter tous les visuels du rapport. Trois ou quatre graphiques principaux suffisent généralement ; les autres restent disponibles pour répondre aux questions.
+
+## Accessibilité
+
+Le rapport utilise des contrastes élevés et évite de transmettre une information uniquement par la couleur.
+
+Des textes alternatifs sont renseignés sur les principaux graphiques et filtres. Les niveaux de danger conservent également leur numéro et leur libellé en plus de leur couleur.
 
 ## Captures à conserver avec le livrable
 
 Pour la version finale du projet, ajouter dans cette documentation :
-1. une capture de la page d'accueil du rapport ;
-2. une capture montrant les filtres principaux ;
+
+1. une capture de la Vue générale ;
+2. une capture de la page Danger incendie avec la barre de filtres ;
 3. une capture du modèle de données Power BI si celui-ci est présenté à l'oral.
 
 Une courte légende sous chaque capture suffit.
@@ -73,9 +154,11 @@ Une courte légende sous chaque capture suffit.
 ## En cas de problème
 
 Vérifier d'abord :
+
 1. que le pipeline GitHub Actions s'est terminé correctement ;
 2. que `dbt build` ne contient pas de test en erreur ;
 3. que `pbi_risque_incendie` contient des données récentes ;
-4. que Power BI a bien été actualisé.
+4. que Power BI a bien été actualisé ;
+5. sur les pages incendie, que la période choisie appartient bien à la période de prévision proposée par le segment.
 
 Pour une question sur le projet, utiliser les Issues du dépôt GitHub ou contacter Loïck M.
