@@ -2,7 +2,7 @@
 
 Projet de fin de formation Data Analyst à la Wild Code School.
 
-Fourcasters rapproche des données météo historiques et les niveaux de danger de la **Météo des forêts** en France métropolitaine. Le projet couvre toute la chaîne vue pendant la formation : collecte Python, stockage dans Google Cloud et BigQuery, transformations dbt, analyse, Power BI et un premier modèle de Machine Learning présenté avec Streamlit.
+Fourcasters rapproche des données météo historiques et les niveaux de danger de la **Météo des forêts** en France métropolitaine. Le projet couvre toute la chaîne vue pendant la formation : collecte Python, stockage dans Google Cloud et BigQuery, transformations dbt, analyse exploratoire en Python, Power BI et un premier modèle de Machine Learning présenté avec Streamlit.
 
 > Le modèle ML cherche à reproduire un niveau de danger Météo-France. Il ne prédit pas les départs de feu réels et ne doit pas être utilisé comme outil opérationnel.
 
@@ -22,51 +22,52 @@ Open-Meteo + Météo-France
           ↓
         Python
           ↓
- CSV / Parquet temporaire
+        Parquet
           ↓
  Google Cloud Storage
           ↓
        BigQuery
           ↓
           dbt
-       ↙      ↘
- Power BI   Machine Learning
-               ↓
-          pipeline.pkl
-               ↓
-           Streamlit
+      ↙    ↓    ↘
+   EDA   Power BI   Machine Learning
+                     ↓
+                pipeline.pkl
+                     ↓
+                 Streamlit
 ```
 
 La collecte quotidienne et le ML sont volontairement séparés : GitHub Actions actualise les données et lance dbt, tandis que l'entraînement du modèle est lancé à la demande.
 
-## Dossiers principaux
+## Prérequis
 
-```text
-Projet_Fourcasters/
-├── .github/workflows/pipeline.yml
-├── DOCUMENTATION/
-├── fourcasters/              # projet dbt
-├── notebooks/                # EDA
-├── scripts/                  # scripts à lancer
-├── src/fourcasters_dbt/      # fonctions Python
-├── tests/                    # tests Python
-├── streamlit_app.py          # démonstration du modèle
-├── pyproject.toml
-└── README.md
-```
+- Python **3.12** ;
+- `uv` pour gérer l'environnement Python ;
+- un projet Google Cloud avec accès à BigQuery et Cloud Storage ;
+- une clé API Météo-France ;
+- des identifiants Google Cloud utilisables en local ou via ADC.
 
 ## Installation
 
-Le projet utilise Python 3.12 et `uv`.
+Installer les dépendances principales :
 
 ```bash
 uv sync
 ```
 
-Créer ensuite le fichier `.env` à partir de `.env.example` et renseigner :
+Pour travailler dans les notebooks :
 
-- la clé API Météo-France ;
-- les identifiants Google Cloud si nécessaire en local.
+```bash
+uv sync --group analyse
+```
+
+Pour utiliser Streamlit :
+
+```bash
+uv sync --group app
+```
+
+Créer ensuite le fichier `.env` à partir de `.env.example` et renseigner notamment la clé API Météo-France.
 
 Pour dbt :
 
@@ -75,9 +76,9 @@ mkdir -p ~/.dbt
 cp fourcasters/profiles.example.yml ~/.dbt/profiles.yml
 ```
 
-## Actualiser les données
+## Utilisation
 
-Les deux sources :
+Actualiser les deux sources :
 
 ```bash
 uv run python scripts/actualiser_fourcasters.py
@@ -107,11 +108,52 @@ L'import des archives Météo-France est séparé du pipeline quotidien :
 uv run python scripts/importer_archives_meteofrance.py --annees 2024 2025 2026
 ```
 
-## dbt
+Construire les modèles et lancer les tests dbt :
 
 ```bash
 uv run dbt build --project-dir fourcasters
 ```
+
+Lancer les notebooks :
+
+```bash
+uv run --group analyse jupyter notebook
+```
+
+Lancer Streamlit :
+
+```bash
+uv run python -m streamlit run streamlit_app.py
+```
+
+## Structure du projet
+
+```text
+Projet_Fourcasters/
+├── .github/workflows/pipeline.yml
+├── DOCUMENTATION/
+├── fourcasters/              # projet dbt
+├── notebooks/                # EDA Python
+├── scripts/                  # scripts à lancer
+├── src/fourcasters_dbt/      # fonctions Python
+├── tests/                    # tests Python
+├── pipeline.pkl              # modèle ML entraîné
+├── streamlit_app.py          # démonstration du modèle
+├── pyproject.toml
+├── uv.lock
+└── README.md
+```
+
+## Analyse exploratoire
+
+Deux notebooks servent à comprendre les données avant Power BI :
+
+- `notebooks/EDA Météo.ipynb` : qualité, statistiques, saisonnalité, territoires, corrélations et journées extrêmes ;
+- `notebooks/EDA Incendies.ipynb` : qualité des publications Météo-France, répartition des niveaux, saisonnalité, territoires et comparaison J1/J2.
+
+L'analyse est faite principalement avec **Pandas** et **Matplotlib**.
+
+## dbt
 
 Les modèles suivent trois niveaux simples :
 
@@ -119,14 +161,22 @@ Les modèles suivent trois niveaux simples :
 - **intermediate** : enrichissements et agrégations ;
 - **marts** : tables finales pour l'analyse, Power BI et le ML.
 
-Les tables ML sont volontairement séparées :
+Les tables ML sont séparées :
 
 - `ml_features_incendie` prépare les variables météo sans cible ;
-- `ml_train_incendie` ajoute ensuite le niveau Météo-France utilisé comme cible.
+- `ml_train_incendie` ajoute le niveau Météo-France utilisé comme cible.
+
+## Power BI
+
+Power BI sert à analyser la météo et les niveaux de danger. Il utilise principalement la table `pbi_risque_incendie` préparée par dbt dans BigQuery.
+
+Le Machine Learning n'est pas exécuté dans Power BI.
+
+La documentation utilisateur est disponible dans [DOCUMENTATION/GUIDE_POWER_BI.md](DOCUMENTATION/GUIDE_POWER_BI.md).
 
 ## Machine Learning
 
-Le modèle principal est un **Random Forest**. Il utilise un Pipeline scikit-learn :
+Le modèle principal est un **Random Forest** avec un Pipeline scikit-learn :
 
 ```text
 SimpleImputer → RandomForestClassifier
@@ -140,7 +190,7 @@ Entraîner et enregistrer le modèle :
 uv run python scripts/entrainer_ml_incendie.py
 ```
 
-Le script crée `pipeline.pkl` à la racine du projet. Ce fichier contient le prétraitement et le modèle entraîné.
+Le script crée `pipeline.pkl` à la racine du projet.
 
 Résultats obtenus lors du dernier test :
 
@@ -165,27 +215,6 @@ Mesurer ponctuellement l'impact de l'entraînement avec CodeCarbon :
 uv run --group analyse python scripts/mesurer_co2_ml.py
 ```
 
-## Streamlit
-
-Streamlit sert uniquement à présenter le modèle ML de façon interactive. L'application utilise la période de test et compare la prédiction du modèle avec le niveau officiel Météo-France.
-
-Ajouter Streamlit une première fois avec `uv`, puis lancer l'application :
-
-```bash
-uv add --group app streamlit
-uv run streamlit run streamlit_app.py
-```
-
-La première commande ajoute Streamlit au projet et met à jour `uv.lock`. Elle n'est à faire qu'une fois.
-
-Il faut avoir créé `pipeline.pkl` auparavant avec le script d'entraînement.
-
-## Power BI
-
-Power BI reste la couche de visualisation du projet pour l'analyse météo et le danger incendie. Il lit les tables préparées par dbt dans BigQuery.
-
-Le ML n'est pas exécuté dans Power BI : la démonstration du modèle est faite dans Streamlit.
-
 ## Tests
 
 Tests Python :
@@ -200,7 +229,7 @@ Tests et modèles dbt :
 uv run dbt build --project-dir fourcasters
 ```
 
-Contrôle rapide de la structure dbt :
+Contrôle de la structure dbt :
 
 ```bash
 uv run dbt parse --project-dir fourcasters
@@ -215,18 +244,25 @@ uv run dbt parse --project-dir fourcasters
 3. les tables BigQuery ;
 4. les modèles et tests dbt.
 
-Le modèle ML n'est pas réentraîné chaque jour. L'entraînement reste volontairement manuel pour ce projet étudiant.
+Le modèle ML n'est pas réentraîné chaque jour.
 
 ## Documentation
 
-Le dossier `DOCUMENTATION/` contient :
+Les principaux documents du projet sont :
 
-- les requêtes de contrôle BigQuery ;
+- [Schéma des données](DOCUMENTATION/SCHEMA_DONNEES.md) ;
+- [Dictionnaire de données](DOCUMENTATION/DICTIONNAIRE_DONNEES.md) ;
+- [Guide utilisateur Power BI](DOCUMENTATION/GUIDE_POWER_BI.md) ;
+- `DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql` pour les contrôles manuels ;
 - l'audit de sobriété ;
 - la note de vigilance éthique ;
 - la réflexion sur la dépendance technologique ;
 - le point sur l'AI Act.
 
-## Équipe
+Les descriptions et tests des modèles sont également présents dans les fichiers YAML de dbt.
+
+## Équipe et contact
 
 Projet initialisé en groupe puis poursuivi individuellement dans le cadre de la formation Data Analyst : Angèle T., Christophe L., Eddy H. et Loïck M.
+
+Pour une question ou un problème sur le projet, utiliser les **Issues du dépôt GitHub**.
