@@ -5,6 +5,7 @@ import math
 import joblib
 import pandas as pd
 import streamlit as st
+from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 from fourcasters_dbt.configuration import FICHIER_COMMUNES
 from fourcasters_dbt.ml_incendie import (
@@ -290,6 +291,45 @@ def charger_referentiel() -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+@st.cache_data(ttl=3600)
+def construire_comparaison_test() -> pd.DataFrame:
+    """Compare toutes les prédictions du jeu de test à Météo-France."""
+    donnees_test, x_test = charger_periode_test()
+    modele = charger_pipeline_historique()
+
+    predictions = modele.predict(x_test).astype(int)
+    probabilites = modele.predict_proba(x_test)
+
+    comparaison = donnees_test.loc[
+        x_test.index,
+        [
+            "date_publication",
+            "numero_departement",
+            "departement",
+            "echeance",
+            COLONNE_CIBLE,
+        ],
+    ].copy()
+
+    comparaison["niveau_reel"] = comparaison[COLONNE_CIBLE].astype(int)
+    comparaison["niveau_predit"] = predictions
+    comparaison["ecart"] = (
+        comparaison["niveau_predit"] - comparaison["niveau_reel"]
+    )
+    comparaison["ecart_absolu"] = comparaison["ecart"].abs()
+    comparaison["confiance"] = probabilites.max(axis=1)
+    comparaison["resultat"] = comparaison["ecart"].map(
+        lambda valeur: "✅ Juste" if valeur == 0 else "❌ Erreur"
+    )
+
+    return comparaison.drop(columns=[COLONNE_CIBLE]).reset_index(drop=True)
+
+
+def libelle_niveau(niveau: int) -> str:
+    """Retourne un libellé court pour un niveau de danger."""
+    return f"Niveau {niveau} — {NOMS_NIVEAUX.get(niveau, 'Inconnu')}"
+
+
 def calculer_vpd(
     temperature_maximale: float,
     humidite_moyenne: float,
@@ -369,9 +409,10 @@ except Exception as erreur:
     st.stop()
 
 
-tab_historique, tab_simulation = st.tabs(
+tab_historique, tab_resultats, tab_simulation = st.tabs(
     [
         "🗓️ Cas historique",
+        "📈 Résultats ML",
         "🔥 Simulateur météo",
     ]
 )
@@ -536,6 +577,278 @@ with tab_historique:
             m4.metric(
                 "Rafale maximale",
                 f"{float(ligne['rafale_vent_maximale']):.1f} km/h",
+            )
+
+
+with tab_resultats:
+    st.markdown(
+        '<div class="section-title">Résultats du modèle sur 2026</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div class="section-subtitle">'
+        'Le Random Forest est évalué sur les dates les plus récentes, '
+        'gardées à part de l\'entraînement. On compare ici chaque niveau '
+        'prédit au niveau officiel Météo-France.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.container(border=True):
+        st.markdown("#### 🌦️ Pourquoi ce modèle ?")
+        st.write(
+            "Fourcasters rapproche la météo historique et les niveaux "
+            "officiels de danger incendie. Le modèle cherche à reproduire "
+            "un niveau Météo-France de 1 à 4 à partir des variables météo. "
+            "Il ne cherche pas à prédire le départ réel d'un feu."
+        )
+        st.caption(
+            "Le prototype sert surtout à tester si les variables météo "
+            "contiennent assez d'information pour retrouver le niveau "
+            "officiel."
+        )
+
+    comparaison = construire_comparaison_test()
+    comparaison_2026 = comparaison[
+        comparaison["date_publication"].dt.year == 2026
+    ].copy()
+
+    if comparaison_2026.empty:
+        st.warning("Aucune observation 2026 n'est présente dans le jeu de test.")
+    else:
+        y_reel = comparaison_2026["niveau_reel"]
+        y_predit = comparaison_2026["niveau_predit"]
+
+        accuracy = (y_reel == y_predit).mean()
+        f1_macro = f1_score(
+            y_reel,
+            y_predit,
+            labels=[1, 2, 3, 4],
+            average="macro",
+            zero_division=0,
+        )
+        classe_majoritaire = y_reel.value_counts(normalize=True).max()
+        ecart_moyen = comparaison_2026["ecart_absolu"].mean()
+
+        kpi_1, kpi_2, kpi_3, kpi_4 = st.columns(4)
+        kpi_1.metric("Accuracy", f"{accuracy:.2%}")
+        kpi_2.metric("Baseline majoritaire", f"{classe_majoritaire:.2%}")
+        kpi_3.metric("F1 macro", f"{f1_macro:.3f}")
+        kpi_4.metric("Écart moyen", f"{ecart_moyen:.2f} niveau")
+
+        date_min = comparaison_2026["date_publication"].min().date()
+        date_max = comparaison_2026["date_publication"].max().date()
+
+        st.caption(
+            f"Période évaluée : {date_min} → {date_max} · "
+            f"{len(comparaison_2026):,} observations."
+        )
+
+        exact = (comparaison_2026["ecart_absolu"] == 0).mean()
+        un_niveau = (comparaison_2026["ecart_absolu"] == 1).mean()
+        deux_ou_plus = (comparaison_2026["ecart_absolu"] >= 2).mean()
+
+        lecture_1, lecture_2, lecture_3 = st.columns(3)
+        lecture_1.metric("Même niveau", f"{exact:.1%}")
+        lecture_2.metric("Écart d'un niveau", f"{un_niveau:.1%}")
+        lecture_3.metric("Écart ≥ 2 niveaux", f"{deux_ou_plus:.1%}")
+
+        st.markdown("#### Comparaison globale")
+
+        distribution = pd.DataFrame(
+            {
+                "Météo-France": y_reel.value_counts().reindex(
+                    [1, 2, 3, 4],
+                    fill_value=0,
+                ),
+                "Modèle": y_predit.value_counts().reindex(
+                    [1, 2, 3, 4],
+                    fill_value=0,
+                ),
+            },
+            index=[
+                "Niveau 1",
+                "Niveau 2",
+                "Niveau 3",
+                "Niveau 4",
+            ],
+        )
+        st.bar_chart(distribution)
+
+        col_performance, col_confusion = st.columns([1.15, 1])
+
+        with col_performance:
+            st.markdown("##### Performance par niveau")
+            rapport = classification_report(
+                y_reel,
+                y_predit,
+                labels=[1, 2, 3, 4],
+                output_dict=True,
+                zero_division=0,
+            )
+            performance = pd.DataFrame(
+                {
+                    "Niveau": [
+                        "1 — Faible",
+                        "2 — Modéré",
+                        "3 — Élevé",
+                        "4 — Très élevé",
+                    ],
+                    "Précision": [
+                        rapport[str(niveau)]["precision"]
+                        for niveau in [1, 2, 3, 4]
+                    ],
+                    "Rappel": [
+                        rapport[str(niveau)]["recall"]
+                        for niveau in [1, 2, 3, 4]
+                    ],
+                    "F1": [
+                        rapport[str(niveau)]["f1-score"]
+                        for niveau in [1, 2, 3, 4]
+                    ],
+                    "Observations": [
+                        int(rapport[str(niveau)]["support"])
+                        for niveau in [1, 2, 3, 4]
+                    ],
+                }
+            )
+            st.dataframe(
+                performance.style.format(
+                    {
+                        "Précision": "{:.1%}",
+                        "Rappel": "{:.1%}",
+                        "F1": "{:.3f}",
+                    }
+                ),
+                hide_index=True,
+                use_container_width=True,
+            )
+
+        with col_confusion:
+            st.markdown("##### Matrice de confusion")
+            matrice = confusion_matrix(
+                y_reel,
+                y_predit,
+                labels=[1, 2, 3, 4],
+            )
+            matrice_df = pd.DataFrame(
+                matrice,
+                index=[
+                    "Réel N1",
+                    "Réel N2",
+                    "Réel N3",
+                    "Réel N4",
+                ],
+                columns=[
+                    "Prédit N1",
+                    "Prédit N2",
+                    "Prédit N3",
+                    "Prédit N4",
+                ],
+            )
+            st.dataframe(
+                matrice_df,
+                use_container_width=True,
+            )
+
+        st.markdown("#### Détail prédiction vs réalité")
+
+        filtre_1, filtre_2, filtre_3 = st.columns([1.4, .8, .8])
+
+        departements_resultats = ["Tous"] + sorted(
+            comparaison_2026["departement"].dropna().unique().tolist()
+        )
+        departement_filtre = filtre_1.selectbox(
+            "Département",
+            departements_resultats,
+            key="resultats_departement",
+        )
+
+        echeance_filtre = filtre_2.selectbox(
+            "Échéance",
+            ["Toutes", "J1", "J2"],
+            key="resultats_echeance",
+        )
+
+        resultat_filtre = filtre_3.selectbox(
+            "Résultat",
+            ["Tous", "✅ Juste", "❌ Erreur"],
+            key="resultats_statut",
+        )
+
+        detail = comparaison_2026.copy()
+
+        if departement_filtre != "Tous":
+            detail = detail[
+                detail["departement"] == departement_filtre
+            ]
+
+        if echeance_filtre != "Toutes":
+            detail = detail[
+                detail["echeance"] == echeance_filtre
+            ]
+
+        if resultat_filtre != "Tous":
+            detail = detail[
+                detail["resultat"] == resultat_filtre
+            ]
+
+        detail["Réel"] = detail["niveau_reel"].map(libelle_niveau)
+        detail["Prédit"] = detail["niveau_predit"].map(libelle_niveau)
+        detail["Confiance"] = detail["confiance"]
+        detail["Écart"] = detail["ecart"]
+        detail["Date"] = detail["date_publication"].dt.date
+
+        tableau = detail[
+            [
+                "Date",
+                "numero_departement",
+                "departement",
+                "echeance",
+                "Réel",
+                "Prédit",
+                "Écart",
+                "Confiance",
+                "resultat",
+            ]
+        ].rename(
+            columns={
+                "numero_departement": "Dépt.",
+                "departement": "Département",
+                "echeance": "Horizon",
+                "resultat": "Résultat",
+            }
+        )
+
+        st.dataframe(
+            tableau.style.format(
+                {"Confiance": "{:.1%}"}
+            ),
+            hide_index=True,
+            use_container_width=True,
+            height=430,
+        )
+
+        csv = tableau.to_csv(index=False).encode("utf-8-sig")
+        st.download_button(
+            "⬇️ Télécharger la comparaison 2026",
+            data=csv,
+            file_name="fourcasters_comparaison_ml_2026.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
+        with st.expander("Comment lire les écarts ?"):
+            st.write(
+                "**Écart = niveau prédit − niveau officiel.** "
+                "Un écart de 0 signifie que le modèle retrouve exactement "
+                "Météo-France. +1 signifie qu'il prédit un niveau plus élevé ; "
+                "-1 un niveau plus faible."
+            )
+            st.write(
+                "Le F1 macro donne le même poids aux quatre niveaux. "
+                "Il est utile ici car les classes sont déséquilibrées : "
+                "les niveaux 3 et surtout 4 sont beaucoup plus rares."
             )
 
 
