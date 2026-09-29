@@ -24,10 +24,14 @@ logger = logging.getLogger(__name__)
 TABLE_ML = f"{PROJET_GCP}.{DATASET_ANALYSE}.ml_train_incendie"
 FICHIER_PIPELINE = RACINE_PROJET / "pipeline.pkl"
 COLONNE_CIBLE = "cible_niveau_danger"
-VERSION_FEATURES = "meteo_D-6_a_D_v2"
+VERSION_FEATURES = "meteo_D-6_a_D_train_2024_2025_test_2026_v3"
+
+ANNEES_APPRENTISSAGE = (2024, 2025)
+ANNEE_TEST = 2026
 
 COLONNES_CONTEXTE = [
     "date_publication",
+    "date_prevision",
     "numero_departement",
     "departement",
     "echeance",
@@ -60,7 +64,7 @@ def charger_donnees() -> pd.DataFrame:
         SELECT {colonnes}
         FROM `{TABLE_ML}`
         WHERE meteo_disponible = TRUE
-        ORDER BY date_publication, numero_departement, echeance
+        ORDER BY date_prevision, numero_departement, echeance
     """
     return client.query(requete).to_dataframe(create_bqstorage_client=False)
 
@@ -92,24 +96,24 @@ def preparer_donnees(donnees: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
     return x, y
 
 
-def separer_dates(dates: pd.Series) -> tuple[pd.Series, pd.Series]:
-    """Garde les dates les plus récentes pour le test."""
-    dates = pd.to_datetime(dates, errors="raise").dt.normalize()
-    if dates.isna().any():
-        raise ValueError("Une date de publication est manquante.")
+def separer_dates(dates_prevision: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """Sépare 2024-2025 pour l'apprentissage et 2026 pour le test."""
+    dates_prevision = pd.to_datetime(
+        dates_prevision,
+        errors="raise",
+    ).dt.normalize()
 
-    jours = dates.sort_values().unique()
-    if len(jours) < 2:
-        raise ValueError("Il faut plusieurs dates pour séparer apprentissage et test.")
+    if dates_prevision.isna().any():
+        raise ValueError("Une date de prévision est manquante.")
 
-    date_test = pd.Timestamp(jours[max(1, int(len(jours) * 0.8))])
+    annees = dates_prevision.dt.year
+    train = annees.isin(ANNEES_APPRENTISSAGE)
+    test = annees.eq(ANNEE_TEST)
 
-    # Deux jours sont laissés entre train et test car la cible existe à J1 et J2.
-    train = dates < date_test - pd.Timedelta(days=2)
-    test = dates >= date_test
-
-    if not train.any() or not test.any():
-        raise ValueError("Période trop courte après la séparation chronologique.")
+    if not train.any():
+        raise ValueError("Aucune donnée 2024-2025 disponible pour l'apprentissage.")
+    if not test.any():
+        raise ValueError("Aucune donnée 2026 disponible pour le test.")
 
     return train, test
 
@@ -125,21 +129,32 @@ def creer_modele() -> Pipeline:
                     n_estimators=200,
                     random_state=42,
                     class_weight="balanced",
-                    n_jobs=-1,),),])
+                    n_jobs=-1,
+                ),
+            ),
+        ]
+    )
 
 
 def entrainer_modele(donnees: pd.DataFrame):
-    """Entraîne le modèle sur les dates anciennes et l'évalue sur les plus récentes."""
+    """Entraîne sur 2024-2025 et évalue uniquement sur les cibles 2026."""
     donnees = donnees.reset_index(drop=True)
-    if "date_publication" not in donnees.columns:
-        raise ValueError("La date de publication est nécessaire à l'évaluation.")
+
+    if "date_prevision" not in donnees.columns:
+        raise ValueError(
+            "La date de prévision est nécessaire pour séparer "
+            "l'apprentissage 2024-2025 du test 2026."
+        )
 
     x, y = preparer_donnees(donnees)
     if len(x) < 10:
         raise ValueError("Pas assez de lignes pour entraîner et tester le modèle.")
 
-    dates = pd.to_datetime(donnees.loc[x.index, "date_publication"])
-    train, test = separer_dates(dates)
+    dates_prevision = pd.to_datetime(
+        donnees.loc[x.index, "date_prevision"],
+        errors="raise",
+    )
+    train, test = separer_dates(dates_prevision)
 
     x_train, x_test = x.loc[train], x.loc[test]
     y_train, y_test = y.loc[train], y.loc[test]
@@ -154,6 +169,8 @@ def entrainer_modele(donnees: pd.DataFrame):
     prediction_reference = reference.predict(x_test)
 
     foret = modele.named_steps["modele"]
+    hors_periode = ~(train | test)
+
     resultats = {
         "accuracy": accuracy_score(y_test, predictions),
         "accuracy_reference": accuracy_score(y_test, prediction_reference),
@@ -170,21 +187,32 @@ def entrainer_modele(donnees: pd.DataFrame):
             labels=[1, 2, 3, 4],
             zero_division=0,
         ),
-        "matrice_confusion": confusion_matrix(y_test, predictions, labels=[1, 2, 3, 4]),
+        "matrice_confusion": confusion_matrix(
+            y_test,
+            predictions,
+            labels=[1, 2, 3, 4],
+        ),
         "importance": pd.Series(
             foret.feature_importances_,
             index=COLONNES_MODELE,
         ).sort_values(ascending=False),
         "nb_train": len(x_train),
         "nb_test": len(x_test),
-        "nb_ecartes": int((~train & ~test).sum()),
-        "fin_train": dates.loc[train].max().date(),
-        "debut_test": dates.loc[test].min().date(),
+        "nb_hors_periode": int(hors_periode.sum()),
+        "debut_train": dates_prevision.loc[train].min().date(),
+        "fin_train": dates_prevision.loc[train].max().date(),
+        "debut_test": dates_prevision.loc[test].min().date(),
+        "fin_test": dates_prevision.loc[test].max().date(),
+        "annees_train": "2024-2025",
+        "annee_test": "2026",
         "fenetre_meteo": "D-6 à D",
     }
     return modele, resultats
 
 
-def sauvegarder_modele(modele: Pipeline, fichier: Path = FICHIER_PIPELINE) -> None:
+def sauvegarder_modele(
+    modele: Pipeline,
+    fichier: Path = FICHIER_PIPELINE,
+) -> None:
     """Enregistre le Pipeline pour pouvoir le recharger dans Streamlit."""
     joblib.dump(modele, fichier, compress=3)
