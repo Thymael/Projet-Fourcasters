@@ -112,11 +112,12 @@ models:
 
   - name: ml_features_incendie
     description: >-
-      Variables météo décalées de sept jours avant chaque publication. Cette table ne
-      contient volontairement pas la cible pour éviter une fuite d'information.
+      Variables météo des sept derniers jours connus au moment de la publication,
+      de D-6 à D. Cette table ne contient volontairement pas la cible pour éviter
+      une fuite d'information.
     columns:
       - name: nombre_jours_meteo_7j
-        description: "Nombre de jours complets sur les sept jours calendaires de la fenêtre."
+        description: "Nombre de jours complets dans la fenêtre météo D-6 à D."
       - name: meteo_disponible
         description: "Vrai uniquement si les sept jours de météo sont complets."
         data_tests: [not_null]
@@ -124,6 +125,8 @@ models:
         data_tests: [not_null, unique]
       - name: date_publication
         data_tests: [not_null]
+      - name: meteo_date
+        description: "Dernier jour de la fenêtre météo ; il correspond à la date de publication D."
       - name: numero_departement
         data_tests: [not_null]
 
