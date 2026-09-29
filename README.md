@@ -186,7 +186,12 @@ Le modèle principal est un **Random Forest** avec un Pipeline scikit-learn :
 SimpleImputer → RandomForestClassifier
 ```
 
-Le découpage est chronologique : les dates les plus anciennes servent au train et les 20 % de dates les plus récentes au test. Deux jours sont laissés entre les deux périodes pour tenir compte des horizons J1 et J2.
+Le découpage est maintenant fait par année de cible :
+- les niveaux Météo-France prévus pour **2024 et 2025** servent à l'apprentissage ;
+- toutes les cibles disponibles dont la `date_prevision` est en **2026** sont réservées au test ;
+- aucune cible 2026 n'est utilisée pour entraîner le modèle.
+
+Ce choix permet de tester le modèle sur une année qu'il n'a jamais vue pendant l'apprentissage.
 
 Pour un bulletin publié le jour **D**, le modèle utilise les **7 derniers jours météo connus, de D-6 à D** :
 - J1 cible le niveau de danger de D+1 ;
@@ -201,16 +206,18 @@ uv run python scripts/entrainer_ml_incendie.py
 
 Le script crée `pipeline.pkl` à la racine du projet.
 
-Résultats du dernier entraînement après correction de la fenêtre météo :
+Résultat de référence avant le nouveau split annuel :
 
-| Modèle | Accuracy | F1 macro |
+| Évaluation | Accuracy | F1 macro |
 | --- | ---: | ---: |
-| Classe majoritaire | 35,48 % | — |
-| Random Forest | **62,54 %** | **0,404** |
+| Random Forest, split temporel 80/20 | **62,54 %** | **0,404** |
+| Référence naïve, classe majoritaire | 35,48 % | — |
 
-La correction temporelle améliore le modèle : l'ancienne version, basée sur D-13 → D-7, obtenait 55,51 % d'accuracy et 0,338 de F1 macro. La nouvelle fenêtre D-6 → D est donc conservée.
+Ces chiffres utilisaient déjà la bonne fenêtre météo D-6 → D, mais une partie de 2026 était encore présente dans l'apprentissage. Ils servent donc uniquement de comparaison.
 
-Les niveaux 1 et 2 sont les mieux reconnus. Le niveau 3 reste difficile et le niveau 4 reste très rare : le modèle n'est donc pas un outil opérationnel.
+Le résultat final doit être recalculé avec **2024-2025 en apprentissage et 2026 entièrement en test**.
+
+La référence naïve est un `DummyClassifier(strategy="most_frequent")` : elle prédit toujours la classe la plus fréquente du jeu d'apprentissage. Ce n'est pas un modèle métier ; elle donne un niveau minimal à battre.
 
 Comparer les modèles :
 
