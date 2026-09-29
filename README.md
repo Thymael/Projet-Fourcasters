@@ -201,17 +201,16 @@ uv run python scripts/entrainer_ml_incendie.py
 
 Le script crée `pipeline.pkl` à la racine du projet.
 
-
-Référence avant correction de la fenêtre météo :
+Résultats du dernier entraînement après correction de la fenêtre météo :
 
 | Modèle | Accuracy | F1 macro |
 | --- | ---: | ---: |
-| Classe majoritaire | 38,43 % | — |
-| Régression logistique | 29,06 % | 0,253 |
-| Arbre de décision | 37,46 % | 0,275 |
-| Random Forest | **55,51 %** | **0,338** |
+| Classe majoritaire | 35,48 % | — |
+| Random Forest | **62,54 %** | **0,404** |
 
-Ces métriques ont été obtenues avec l'ancienne fenêtre D-13 → D-7. Elles servent maintenant de point de comparaison. Après reconstruction dbt et réentraînement avec D-6 → D, les nouvelles métriques doivent être recalculées avant de conclure.
+La correction temporelle améliore le modèle : l'ancienne version, basée sur D-13 → D-7, obtenait 55,51 % d'accuracy et 0,338 de F1 macro. La nouvelle fenêtre D-6 → D est donc conservée.
+
+Les niveaux 1 et 2 sont les mieux reconnus. Le niveau 3 reste difficile et le niveau 4 reste très rare : le modèle n'est donc pas un outil opérationnel.
 
 Comparer les modèles :
 
