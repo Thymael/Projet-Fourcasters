@@ -273,14 +273,19 @@ def charger_pipeline_historique():
 def charger_periode_test():
     donnees = charger_donnees().reset_index(drop=True)
     x, _ = preparer_donnees(donnees)
-    dates = pd.to_datetime(donnees.loc[x.index, "date_publication"])
-    _, test = separer_dates(dates)
+    dates_prevision = pd.to_datetime(
+        donnees.loc[x.index, "date_prevision"]
+    )
+    _, test = separer_dates(dates_prevision)
 
     indices_test = x.index[test]
     donnees_test = donnees.loc[indices_test].copy()
     x_test = x.loc[indices_test].copy()
     donnees_test["date_publication"] = pd.to_datetime(
         donnees_test["date_publication"]
+    )
+    donnees_test["date_prevision"] = pd.to_datetime(
+        donnees_test["date_prevision"]
     )
     return donnees_test, x_test
 
