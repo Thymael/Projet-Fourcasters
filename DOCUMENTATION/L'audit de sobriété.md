@@ -32,9 +32,11 @@ Le Random Forest n'est pas réentraîné automatiquement chaque jour. Il est lan
 
 La fenêtre météo utilisée est D-6 à D. Le modèle apprend maintenant uniquement sur les cibles Météo-France de 2024 et 2025, puis il est évalué sur toutes les cibles 2026 disponibles.
 
-Le dernier résultat connu avant ce nouveau split annuel était de **62,54 % d'accuracy** et **0,404 de F1 macro** avec un split temporel 80/20. Il sert uniquement de comparaison historique et doit être remplacé par le résultat 2024-2025 → 2026 après réentraînement.
+Avec le split annuel final, le Random Forest est entraîné sur **46 080 lignes** de 2024-2025 et testé sur **21 504 lignes** de 2026. Il obtient **64,35 % d'accuracy** et **0,417 de F1 macro**.
 
-La référence naïve est un `DummyClassifier(strategy="most_frequent")`. Elle prédit toujours la classe la plus fréquente dans les données d'apprentissage et sert seulement de repère minimal à battre.
+La référence naïve obtient **42,28 % d'accuracy**. C'est un `DummyClassifier(strategy="most_frequent")` : il prédit toujours la classe la plus fréquente dans les données d'apprentissage et sert seulement de repère minimal à battre.
+
+L'ancien split temporel 80/20 obtenait 62,54 % d'accuracy et 0,404 de F1 macro. Il est conservé uniquement comme repère historique.
 
 Une mesure ponctuelle CodeCarbon a estimé l'entraînement à environ 0,000002 kg de CO2 sur la machine utilisée.
 
