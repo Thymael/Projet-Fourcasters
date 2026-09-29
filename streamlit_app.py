@@ -590,7 +590,12 @@ with tab_historique:
 
         with col_info:
             st.metric("Échéance", echeance)
-            st.metric("Département", str(numero_departement))
+            st.metric(
+                "Bulletin",
+                pd.to_datetime(
+                    ligne["date_publication"]
+                ).strftime("%d/%m/%Y"),
+            )
 
         if prediction == niveau_officiel:
             st.markdown(
@@ -654,8 +659,8 @@ with tab_resultats:
     )
     st.markdown(
         '<div class="section-subtitle">'
-        "Le Random Forest est évalué sur les dates les plus récentes, "
-        "gardées à part de l'entraînement."
+        "Le Random Forest apprend uniquement sur les cibles 2024-2025. "
+        "Toutes les cibles 2026 disponibles sont réservées au test."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -672,13 +677,14 @@ with tab_resultats:
             "les informations officielles."
         )
         st.info(
-            "Fenêtre météo utilisée : les 7 derniers jours connus, "
-            "de D−6 à D. J1 cible D+1 et J2 cible D+2."
+            "Apprentissage : 2024-2025 · Test : 2026. "
+            "Fenêtre météo : les 7 derniers jours connus, de D−6 à D. "
+            "J1 cible D+1 et J2 cible D+2."
         )
 
     comparaison = construire_comparaison_test()
     comparaison_2026 = comparaison[
-        comparaison["date_publication"].dt.year == 2026
+        comparaison["date_prevision"].dt.year == 2026
     ].copy()
 
     if comparaison_2026.empty:
@@ -707,7 +713,7 @@ with tab_resultats:
         kpi_1, kpi_2, kpi_3, kpi_4 = st.columns(4)
         kpi_1.metric("Accuracy", f"{accuracy:.2%}")
         kpi_2.metric(
-            "Baseline majoritaire",
+            "Référence naïve",
             f"{classe_majoritaire:.2%}",
         )
         kpi_3.metric("F1 macro", f"{f1_macro:.3f}")
@@ -717,10 +723,10 @@ with tab_resultats:
         )
 
         date_min = comparaison_2026[
-            "date_publication"
+            "date_prevision"
         ].min().date()
         date_max = comparaison_2026[
-            "date_publication"
+            "date_prevision"
         ].max().date()
 
         st.caption(
