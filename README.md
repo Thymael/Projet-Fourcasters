@@ -206,18 +206,23 @@ uv run python scripts/entrainer_ml_incendie.py
 
 Le script crée `pipeline.pkl` à la racine du projet.
 
-Résultat de référence avant le nouveau split annuel :
+Résultats du split annuel final :
 
 | Évaluation | Accuracy | F1 macro |
 | --- | ---: | ---: |
-| Random Forest, split temporel 80/20 | **62,54 %** | **0,404** |
-| Référence naïve, classe majoritaire | 35,48 % | — |
+| Référence naïve, classe majoritaire | **42,28 %** | — |
+| Random Forest | **64,35 %** | **0,417** |
 
-Ces chiffres utilisaient déjà la bonne fenêtre météo D-6 → D, mais une partie de 2026 était encore présente dans l'apprentissage. Ils servent donc uniquement de comparaison.
+- apprentissage : **46 080 lignes**, cibles du 04/06/2024 au 02/10/2025 ;
+- test : **21 504 lignes**, cibles du 29/05/2026 au 25/09/2026 ;
+- fenêtre météo : **D-6 à D** ;
+- aucune cible 2026 n'est utilisée pendant l'apprentissage.
 
-Le résultat final doit être recalculé avec **2024-2025 en apprentissage et 2026 entièrement en test**.
+Le Random Forest dépasse la référence naïve de **22,07 points d'accuracy**. Les niveaux 1 et 2 sont les mieux reconnus. Le niveau 3 reste difficile (rappel 20 %) et le niveau 4 n'est pas correctement appris sur ce test (rappel 0 %), avec seulement 141 observations.
 
-La référence naïve est un `DummyClassifier(strategy="most_frequent")` : elle prédit toujours la classe la plus fréquente du jeu d'apprentissage. Ce n'est pas un modèle métier ; elle donne un niveau minimal à battre.
+À titre de comparaison, l'ancien split temporel 80/20 obtenait 62,54 % d'accuracy et 0,404 de F1 macro. Les deux scores ne sont pas strictement comparables car les jeux de test diffèrent.
+
+La référence naïve est un `DummyClassifier(strategy="most_frequent")` : elle apprend uniquement quelle est la classe la plus fréquente en 2024-2025 puis prédit cette classe pour toutes les lignes 2026. Ce n'est pas un modèle métier ; elle donne un niveau minimal à battre.
 
 Comparer les modèles :
 
