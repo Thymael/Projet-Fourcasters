@@ -8,6 +8,7 @@ from sklearn.pipeline import Pipeline
 
 from fourcasters_dbt.ml_incendie import (
     COLONNES_MODELE,
+    VERSION_FEATURES,
     creer_modele,
     entrainer_modele,
     preparer_donnees,
@@ -101,3 +102,5 @@ def test_entrainement_complet_sur_donnees_fictives():
     assert resultats["accuracy_reference"] == 0.25
     assert resultats["matrice_confusion"].shape == (4, 4)
     assert resultats["matrice_confusion"].sum() == 16
+    assert resultats["fenetre_meteo"] == "D-6 à D"
+    assert modele.fourcasters_feature_version == VERSION_FEATURES
