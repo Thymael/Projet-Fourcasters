@@ -263,7 +263,8 @@ def charger_pipeline_historique():
     version = getattr(modele, "fourcasters_feature_version", None)
     if version != VERSION_FEATURES:
         raise ValueError(
-            "Le pipeline.pkl a été entraîné avec l'ancienne fenêtre météo. "
+            "Le pipeline.pkl ne correspond pas au split actuel "
+            "2024-2025 → 2026 ou à la fenêtre météo D-6 à D. "
             "Relance scripts/entrainer_ml_incendie.py après dbt build."
         )
     return modele
@@ -303,6 +304,7 @@ def construire_comparaison_test() -> pd.DataFrame:
         x_test.index,
         [
             "date_publication",
+            "date_prevision",
             "numero_departement",
             "departement",
             "echeance",
@@ -491,8 +493,8 @@ with tab_historique:
     )
     st.markdown(
         '<div class="section-subtitle">'
-        "Choisir un bulletin de la période de test, puis comparer "
-        "la prédiction au niveau officiel."
+        "Choisir une date prévue en 2026, un département et l'échéance, "
+        "puis comparer la prédiction au niveau officiel Météo-France."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -503,17 +505,17 @@ with tab_historique:
         )
 
         dates = sorted(
-            donnees_test["date_publication"].dt.date.unique(),
+            donnees_test["date_prevision"].dt.date.unique(),
             reverse=True,
         )
         date_choisie = col_date.selectbox(
-            "Date de publication",
+            "Date prévue",
             dates,
             key="historique_date",
         )
 
         selection_date = donnees_test[
-            donnees_test["date_publication"].dt.date == date_choisie
+            donnees_test["date_prevision"].dt.date == date_choisie
         ]
 
         departements = (
