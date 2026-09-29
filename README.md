@@ -188,6 +188,11 @@ SimpleImputer → RandomForestClassifier
 
 Le découpage est chronologique : les dates les plus anciennes servent au train et les 20 % de dates les plus récentes au test. Deux jours sont laissés entre les deux périodes pour tenir compte des horizons J1 et J2.
 
+Pour un bulletin publié le jour **D**, le modèle utilise les **7 derniers jours météo connus, de D-6 à D** :
+- J1 cible le niveau de danger de D+1 ;
+- J2 cible le niveau de danger de D+2 ;
+- les deux horizons utilisent la même fenêtre D-6 → D, et `horizon_jours` permet au modèle de les distinguer.
+
 Entraîner et enregistrer le modèle :
 
 ```bash
@@ -197,7 +202,7 @@ uv run python scripts/entrainer_ml_incendie.py
 Le script crée `pipeline.pkl` à la racine du projet.
 
 
-Résultats obtenus lors du dernier test :
+Référence avant correction de la fenêtre météo :
 
 | Modèle | Accuracy | F1 macro |
 | --- | ---: | ---: |
@@ -206,7 +211,7 @@ Résultats obtenus lors du dernier test :
 | Arbre de décision | 37,46 % | 0,275 |
 | Random Forest | **55,51 %** | **0,338** |
 
-Les niveaux 3 et 4 sont encore mal reconnus. Le modèle reste donc un prototype.
+Ces métriques ont été obtenues avec l'ancienne fenêtre D-13 → D-7. Elles servent maintenant de point de comparaison. Après reconstruction dbt et réentraînement avec D-6 → D, les nouvelles métriques doivent être recalculées avant de conclure.
 
 Comparer les modèles :
 
