@@ -292,6 +292,21 @@ def charger_periode_test():
 
 
 @st.cache_data(ttl=3600)
+def calculer_reference_naive() -> tuple[int, float]:
+    """Calcule la baseline apprise uniquement sur 2024-2025."""
+    donnees = charger_donnees().reset_index(drop=True)
+    x, y = preparer_donnees(donnees)
+    dates_prevision = pd.to_datetime(
+        donnees.loc[x.index, "date_prevision"]
+    )
+    train, test = separer_dates(dates_prevision)
+
+    classe = int(y.loc[train].mode().iloc[0])
+    accuracy = float((y.loc[test] == classe).mean())
+    return classe, accuracy
+
+
+@st.cache_data(ttl=3600)
 def construire_comparaison_test() -> pd.DataFrame:
     """Compare les prédictions du jeu de test à Météo-France."""
     donnees_test, x_test = charger_periode_test()
@@ -703,9 +718,7 @@ with tab_resultats:
             average="macro",
             zero_division=0,
         )
-        classe_majoritaire = y_reel.value_counts(
-            normalize=True
-        ).max()
+        classe_reference, accuracy_reference = calculer_reference_naive()
         ecart_moyen = comparaison_2026[
             "ecart_absolu"
         ].mean()
@@ -713,8 +726,12 @@ with tab_resultats:
         kpi_1, kpi_2, kpi_3, kpi_4 = st.columns(4)
         kpi_1.metric("Accuracy", f"{accuracy:.2%}")
         kpi_2.metric(
-            "Référence naïve",
-            f"{classe_majoritaire:.2%}",
+            f"Référence naïve · N{classe_reference}",
+            f"{accuracy_reference:.2%}",
+            help=(
+                "DummyClassifier : prédit toujours la classe la plus "
+                "fréquente dans l'apprentissage 2024-2025."
+            ),
         )
         kpi_3.metric("F1 macro", f"{f1_macro:.3f}")
         kpi_4.metric(
