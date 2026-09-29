@@ -1,23 +1,16 @@
-"""Application Streamlit de démonstration du projet Fourcasters."""
-
-import math
+"""Application Streamlit de démonstration du modèle Fourcasters."""
 
 import joblib
 import pandas as pd
 import streamlit as st
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
-from fourcasters_dbt.configuration import FICHIER_COMMUNES
 from fourcasters_dbt.ml_incendie import (
     COLONNE_CIBLE,
     FICHIER_PIPELINE,
     charger_donnees,
     preparer_donnees,
     separer_dates,
-)
-from fourcasters_dbt.ml_simulation import (
-    FICHIER_PIPELINE_SIMULATION,
-    creer_entrees_simulation,
 )
 
 
@@ -26,7 +19,6 @@ st.set_page_config(
     page_icon="🔥",
     layout="wide",
 )
-
 
 st.markdown(
     """
@@ -37,15 +29,13 @@ st.markdown(
             --fc-green: #72d6a0;
             --fc-fire: #ff9f43;
             --fc-red: #ff5d5d;
-            --fc-ink: #f4f7fb;
             --fc-muted: #a9b6c7;
-            --fc-panel: rgba(14, 25, 36, 0.78);
         }
 
         .stApp {
             background:
-                radial-gradient(circle at 10% 0%, rgba(64, 153, 255, 0.18), transparent 30%),
-                radial-gradient(circle at 92% 4%, rgba(255, 111, 42, 0.16), transparent 28%),
+                radial-gradient(circle at 10% 0%, rgba(64,153,255,.18), transparent 30%),
+                radial-gradient(circle at 92% 4%, rgba(255,111,42,.16), transparent 28%),
                 linear-gradient(155deg, #07121d 0%, #0b1b27 48%, #161916 100%);
         }
 
@@ -60,10 +50,15 @@ st.markdown(
             overflow: hidden;
             padding: 1.8rem 2rem;
             border-radius: 24px;
-            border: 1px solid rgba(255,255,255,0.10);
+            border: 1px solid rgba(255,255,255,.10);
             background:
-                linear-gradient(120deg, rgba(27, 89, 135, 0.44), rgba(28, 62, 54, 0.36) 52%, rgba(126, 55, 24, 0.36));
-            box-shadow: 0 18px 45px rgba(0,0,0,0.18);
+                linear-gradient(
+                    120deg,
+                    rgba(27,89,135,.44),
+                    rgba(28,62,54,.36) 52%,
+                    rgba(126,55,24,.36)
+                );
+            box-shadow: 0 18px 45px rgba(0,0,0,.18);
             margin-bottom: 1.2rem;
         }
 
@@ -73,8 +68,8 @@ st.markdown(
             right: 1.6rem;
             top: 1.3rem;
             font-size: 2rem;
-            letter-spacing: 0.35rem;
-            opacity: 0.18;
+            letter-spacing: .35rem;
+            opacity: .18;
         }
 
         .hero-kicker {
@@ -92,7 +87,7 @@ st.markdown(
         }
 
         .hero p {
-            max-width: 780px;
+            max-width: 800px;
             margin: 0;
             color: #d9e4ef;
             line-height: 1.55;
@@ -154,21 +149,17 @@ st.markdown(
             font-weight: 700;
         }
 
-        .location-card {
-            padding: .85rem 1rem;
-            border-radius: 14px;
-            background: rgba(98,182,255,.08);
-            border: 1px solid rgba(98,182,255,.18);
-            color: #dcecff;
-            margin-bottom: .85rem;
-        }
-
         .result-card {
-            min-height: 170px;
+            min-height: 165px;
             padding: 1.15rem 1.2rem;
             border-radius: 18px;
             border: 1px solid rgba(255,255,255,.09);
-            background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.018));
+            background:
+                linear-gradient(
+                    145deg,
+                    rgba(255,255,255,.055),
+                    rgba(255,255,255,.018)
+                );
             box-shadow: 0 12px 28px rgba(0,0,0,.12);
         }
 
@@ -220,6 +211,24 @@ st.markdown(
             border: 1px solid rgba(239,147,61,.30);
         }
 
+        .legend-row {
+            display: flex;
+            gap: .6rem;
+            flex-wrap: wrap;
+            margin: .5rem 0 1rem 0;
+        }
+
+        .legend-chip {
+            padding: .28rem .55rem;
+            border-radius: 999px;
+            font-size: .78rem;
+            border: 1px solid rgba(255,255,255,.10);
+        }
+
+        .legend-green { background: rgba(73,185,110,.18); }
+        .legend-orange { background: rgba(239,147,61,.18); }
+        .legend-red { background: rgba(227,79,79,.18); }
+
         .small-note {
             color: var(--fc-muted);
             font-size: .86rem;
@@ -252,11 +261,6 @@ def charger_pipeline_historique():
     return joblib.load(FICHIER_PIPELINE)
 
 
-@st.cache_resource
-def charger_pipeline_simulation():
-    return joblib.load(FICHIER_PIPELINE_SIMULATION)
-
-
 @st.cache_data(ttl=3600)
 def charger_periode_test():
     donnees = charger_donnees().reset_index(drop=True)
@@ -273,27 +277,9 @@ def charger_periode_test():
     return donnees_test, x_test
 
 
-@st.cache_data
-def charger_referentiel() -> pd.DataFrame:
-    """Charge les 360 points météo utilisés dans le projet."""
-    referentiel = pd.read_csv(
-        FICHIER_COMMUNES,
-        dtype={
-            "numero_departement": "string",
-            "code_insee": "string",
-        },
-    )
-    referentiel["numero_departement"] = (
-        referentiel["numero_departement"].str.strip()
-    )
-    return referentiel.sort_values(
-        ["numero_departement", "commune"]
-    ).reset_index(drop=True)
-
-
 @st.cache_data(ttl=3600)
 def construire_comparaison_test() -> pd.DataFrame:
-    """Compare toutes les prédictions du jeu de test à Météo-France."""
+    """Compare les prédictions du jeu de test à Météo-France."""
     donnees_test, x_test = charger_periode_test()
     modele = charger_pipeline_historique()
 
@@ -322,27 +308,96 @@ def construire_comparaison_test() -> pd.DataFrame:
         lambda valeur: "✅ Juste" if valeur == 0 else "❌ Erreur"
     )
 
-    return comparaison.drop(columns=[COLONNE_CIBLE]).reset_index(drop=True)
+    return comparaison.drop(
+        columns=[COLONNE_CIBLE]
+    ).reset_index(drop=True)
 
 
 def libelle_niveau(niveau: int) -> str:
-    """Retourne un libellé court pour un niveau de danger."""
+    """Retourne le libellé d'un niveau de danger."""
     return f"Niveau {niveau} — {NOMS_NIVEAUX.get(niveau, 'Inconnu')}"
 
 
-def calculer_vpd(
-    temperature_maximale: float,
-    humidite_moyenne: float,
-) -> float:
-    """Estime le VPD en kPa à partir de la température et de l'humidité."""
-    pression_saturation = 0.6108 * math.exp(
-        (17.27 * temperature_maximale)
-        / (temperature_maximale + 237.3)
+def couleur_niveau(valeur: str) -> str:
+    """Couleur d'une cellule selon le niveau de danger."""
+    if "Niveau 1" in str(valeur):
+        return "background-color: #173b2a; color: #dff7e8; font-weight: 600"
+    if "Niveau 2" in str(valeur):
+        return "background-color: #4a4118; color: #fff4bc; font-weight: 600"
+    if "Niveau 3" in str(valeur):
+        return "background-color: #56341c; color: #ffe1c2; font-weight: 600"
+    if "Niveau 4" in str(valeur):
+        return "background-color: #512525; color: #ffd4d4; font-weight: 600"
+    return ""
+
+
+def couleur_resultat(valeur: str) -> str:
+    """Met en évidence une prédiction juste ou fausse."""
+    if "Juste" in str(valeur):
+        return "background-color: #173b2a; color: #dff7e8; font-weight: 700"
+    return "background-color: #512525; color: #ffd4d4; font-weight: 700"
+
+
+def couleur_ecart(valeur) -> str:
+    """Colore l'écart entre niveau prédit et niveau réel."""
+    try:
+        ecart = abs(float(valeur))
+    except (TypeError, ValueError):
+        return ""
+
+    if ecart == 0:
+        return "background-color: #173b2a; color: #dff7e8; font-weight: 700"
+    if ecart == 1:
+        return "background-color: #56341c; color: #ffe1c2; font-weight: 700"
+    return "background-color: #512525; color: #ffd4d4; font-weight: 700"
+
+
+def couleur_score(valeur) -> str:
+    """Colore une métrique comprise entre 0 et 1."""
+    try:
+        score = float(valeur)
+    except (TypeError, ValueError):
+        return ""
+
+    if score >= 0.60:
+        return "background-color: #173b2a; color: #dff7e8"
+    if score >= 0.30:
+        return "background-color: #56341c; color: #ffe1c2"
+    return "background-color: #512525; color: #ffd4d4"
+
+
+def style_matrice(data: pd.DataFrame) -> pd.DataFrame:
+    """Colore la diagonale en vert et les erreurs en orange/rouge."""
+    styles = pd.DataFrame(
+        "",
+        index=data.index,
+        columns=data.columns,
     )
-    return max(
-        0.0,
-        pression_saturation * (1 - humidite_moyenne / 100),
-    )
+    maximum = max(int(data.to_numpy().max()), 1)
+
+    for ligne in range(data.shape[0]):
+        for colonne in range(data.shape[1]):
+            valeur = int(data.iat[ligne, colonne])
+            if ligne == colonne:
+                styles.iat[ligne, colonne] = (
+                    "background-color: #173b2a; "
+                    "color: #dff7e8; font-weight: 800"
+                )
+            elif valeur == 0:
+                styles.iat[ligne, colonne] = (
+                    "background-color: #17212b; color: #8fa0b4"
+                )
+            elif valeur / maximum >= 0.25:
+                styles.iat[ligne, colonne] = (
+                    "background-color: #512525; "
+                    "color: #ffd4d4; font-weight: 700"
+                )
+            else:
+                styles.iat[ligne, colonne] = (
+                    "background-color: #56341c; color: #ffe1c2"
+                )
+
+    return styles
 
 
 def carte_niveau(
@@ -354,9 +409,9 @@ def carte_niveau(
     confiance_html = ""
     if confiance is not None:
         confiance_html = (
-            f'<div class="result-confidence">'
-            f'Confiance du modèle : {confiance:.0%}'
-            f'</div>'
+            '<div class="result-confidence">'
+            f"Confiance du modèle : {confiance:.0%}"
+            "</div>"
         )
 
     st.markdown(
@@ -376,22 +431,22 @@ st.markdown(
     """
     <div class="hero">
         <div class="hero-kicker">Fourcasters · météo & danger incendie</div>
-        <h1>Du ciel au risque feu</h1>
+        <h1>Du ciel au danger incendie</h1>
         <p>
-            Explorer des cas historiques ou tester un scénario météo
-            sur l'un des 360 points du projet.
+            Explorer un cas historique et comprendre les performances
+            du modèle en comparant ses prédictions aux niveaux officiels
+            publiés par Météo-France.
         </p>
         <div class="hero-tags">
             <span class="hero-tag">🌦️ Open-Meteo</span>
             <span class="hero-tag">🔥 Météo-France</span>
-            <span class="hero-tag">📍 360 points météo</span>
+            <span class="hero-tag">📍 96 départements</span>
             <span class="hero-tag">🤖 Random Forest</span>
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
-
 
 if not FICHIER_PIPELINE.exists():
     st.error(
@@ -403,17 +458,15 @@ if not FICHIER_PIPELINE.exists():
 try:
     modele_historique = charger_pipeline_historique()
     donnees_test, x_test = charger_periode_test()
-    referentiel = charger_referentiel()
 except Exception as erreur:
     st.error(f"Impossible de charger l'application : {erreur}")
     st.stop()
 
 
-tab_historique, tab_resultats, tab_simulation = st.tabs(
+tab_historique, tab_resultats = st.tabs(
     [
         "🗓️ Cas historique",
         "📈 Résultats ML",
-        "🔥 Simulateur météo",
     ]
 )
 
@@ -425,9 +478,9 @@ with tab_historique:
     )
     st.markdown(
         '<div class="section-subtitle">'
-        'Choisir un bulletin de la période de test, puis comparer '
-        'la prédiction au niveau officiel.'
-        '</div>',
+        "Choisir un bulletin de la période de test, puis comparer "
+        "la prédiction au niveau officiel."
+        "</div>",
         unsafe_allow_html=True,
     )
 
@@ -471,7 +524,7 @@ with tab_historique:
         )
         numero_departement = libelles[libelle_departement]
 
-        echeances_disponibles = sorted(
+        echeances = sorted(
             selection_date.loc[
                 selection_date["numero_departement"]
                 == numero_departement,
@@ -480,7 +533,7 @@ with tab_historique:
         )
         echeance = col_echeance.selectbox(
             "Échéance",
-            echeances_disponibles,
+            echeances,
             key="historique_echeance",
         )
 
@@ -522,24 +575,23 @@ with tab_historique:
 
         with col_info:
             st.metric("Échéance", echeance)
-            st.metric(
-                "Département",
-                str(numero_departement),
-            )
+            st.metric("Département", str(numero_departement))
 
         if prediction == niveau_officiel:
             st.markdown(
                 '<div class="match-ok">'
-                '✅ Le modèle retrouve le niveau officiel.'
-                '</div>',
+                "✅ Le modèle retrouve le niveau officiel."
+                "</div>",
                 unsafe_allow_html=True,
             )
         else:
+            ecart = prediction - niveau_officiel
+            signe = "+" if ecart > 0 else ""
             st.markdown(
                 '<div class="match-ko">'
-                '⚠️ Le modèle ne retrouve pas le niveau officiel '
-                'pour cette observation.'
-                '</div>',
+                f"⚠️ Écart de {signe}{ecart} niveau(x) par rapport "
+                "à Météo-France."
+                "</div>",
                 unsafe_allow_html=True,
             )
 
@@ -587,25 +639,22 @@ with tab_resultats:
     )
     st.markdown(
         '<div class="section-subtitle">'
-        'Le Random Forest est évalué sur les dates les plus récentes, '
-        'gardées à part de l\'entraînement. On compare ici chaque niveau '
-        'prédit au niveau officiel Météo-France.'
-        '</div>',
+        "Le Random Forest est évalué sur les dates les plus récentes, "
+        "gardées à part de l'entraînement."
+        "</div>",
         unsafe_allow_html=True,
     )
 
     with st.container(border=True):
-        st.markdown("#### 🌦️ Pourquoi ce modèle ?")
+        st.markdown("#### 🌦️ Le rôle du modèle")
         st.write(
             "Fourcasters rapproche la météo historique et les niveaux "
             "officiels de danger incendie. Le modèle cherche à reproduire "
-            "un niveau Météo-France de 1 à 4 à partir des variables météo. "
-            "Il ne cherche pas à prédire le départ réel d'un feu."
+            "un niveau Météo-France de 1 à 4 à partir des variables météo."
         )
         st.caption(
-            "Le prototype sert surtout à tester si les variables météo "
-            "contiennent assez d'information pour retrouver le niveau "
-            "officiel."
+            "Il ne prédit pas le départ réel d'un feu et ne remplace pas "
+            "les informations officielles."
         )
 
     comparaison = construire_comparaison_test()
@@ -614,7 +663,9 @@ with tab_resultats:
     ].copy()
 
     if comparaison_2026.empty:
-        st.warning("Aucune observation 2026 n'est présente dans le jeu de test.")
+        st.warning(
+            "Aucune observation 2026 n'est présente dans le jeu de test."
+        )
     else:
         y_reel = comparaison_2026["niveau_reel"]
         y_predit = comparaison_2026["niveau_predit"]
@@ -627,44 +678,81 @@ with tab_resultats:
             average="macro",
             zero_division=0,
         )
-        classe_majoritaire = y_reel.value_counts(normalize=True).max()
-        ecart_moyen = comparaison_2026["ecart_absolu"].mean()
+        classe_majoritaire = y_reel.value_counts(
+            normalize=True
+        ).max()
+        ecart_moyen = comparaison_2026[
+            "ecart_absolu"
+        ].mean()
 
         kpi_1, kpi_2, kpi_3, kpi_4 = st.columns(4)
         kpi_1.metric("Accuracy", f"{accuracy:.2%}")
-        kpi_2.metric("Baseline majoritaire", f"{classe_majoritaire:.2%}")
+        kpi_2.metric(
+            "Baseline majoritaire",
+            f"{classe_majoritaire:.2%}",
+        )
         kpi_3.metric("F1 macro", f"{f1_macro:.3f}")
-        kpi_4.metric("Écart moyen", f"{ecart_moyen:.2f} niveau")
+        kpi_4.metric(
+            "Écart moyen",
+            f"{ecart_moyen:.2f} niveau",
+        )
 
-        date_min = comparaison_2026["date_publication"].min().date()
-        date_max = comparaison_2026["date_publication"].max().date()
+        date_min = comparaison_2026[
+            "date_publication"
+        ].min().date()
+        date_max = comparaison_2026[
+            "date_publication"
+        ].max().date()
 
         st.caption(
             f"Période évaluée : {date_min} → {date_max} · "
             f"{len(comparaison_2026):,} observations."
         )
 
-        exact = (comparaison_2026["ecart_absolu"] == 0).mean()
-        un_niveau = (comparaison_2026["ecart_absolu"] == 1).mean()
-        deux_ou_plus = (comparaison_2026["ecart_absolu"] >= 2).mean()
+        exact = (
+            comparaison_2026["ecart_absolu"] == 0
+        ).mean()
+        un_niveau = (
+            comparaison_2026["ecart_absolu"] == 1
+        ).mean()
+        deux_ou_plus = (
+            comparaison_2026["ecart_absolu"] >= 2
+        ).mean()
 
         lecture_1, lecture_2, lecture_3 = st.columns(3)
         lecture_1.metric("Même niveau", f"{exact:.1%}")
-        lecture_2.metric("Écart d'un niveau", f"{un_niveau:.1%}")
-        lecture_3.metric("Écart ≥ 2 niveaux", f"{deux_ou_plus:.1%}")
+        lecture_2.metric(
+            "Écart d'un niveau",
+            f"{un_niveau:.1%}",
+        )
+        lecture_3.metric(
+            "Écart ≥ 2 niveaux",
+            f"{deux_ou_plus:.1%}",
+        )
 
-        st.markdown("#### Comparaison globale")
+        st.markdown(
+            """
+            <div class="legend-row">
+                <span class="legend-chip legend-green">Vert · correct</span>
+                <span class="legend-chip legend-orange">Orange · écart faible</span>
+                <span class="legend-chip legend-red">Rouge · erreur importante</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("#### Répartition réel / prédit")
 
         distribution = pd.DataFrame(
             {
                 "Météo-France": y_reel.value_counts().reindex(
                     [1, 2, 3, 4],
                     fill_value=0,
-                ),
+                ).to_numpy(),
                 "Modèle": y_predit.value_counts().reindex(
                     [1, 2, 3, 4],
                     fill_value=0,
-                ),
+                ).to_numpy(),
             },
             index=[
                 "Niveau 1",
@@ -675,7 +763,9 @@ with tab_resultats:
         )
         st.bar_chart(distribution)
 
-        col_performance, col_confusion = st.columns([1.15, 1])
+        col_performance, col_confusion = st.columns(
+            [1.15, 1]
+        )
 
         with col_performance:
             st.markdown("##### Performance par niveau")
@@ -689,10 +779,10 @@ with tab_resultats:
             performance = pd.DataFrame(
                 {
                     "Niveau": [
-                        "1 — Faible",
-                        "2 — Modéré",
-                        "3 — Élevé",
-                        "4 — Très élevé",
+                        "Niveau 1 — Faible",
+                        "Niveau 2 — Modéré",
+                        "Niveau 3 — Élevé",
+                        "Niveau 4 — Très élevé",
                     ],
                     "Précision": [
                         rapport[str(niveau)]["precision"]
@@ -712,14 +802,24 @@ with tab_resultats:
                     ],
                 }
             )
-            st.dataframe(
-                performance.style.format(
+
+            performance_style = (
+                performance.style
+                .map(couleur_niveau, subset=["Niveau"])
+                .map(
+                    couleur_score,
+                    subset=["Précision", "Rappel", "F1"],
+                )
+                .format(
                     {
                         "Précision": "{:.1%}",
                         "Rappel": "{:.1%}",
                         "F1": "{:.3f}",
                     }
-                ),
+                )
+            )
+            st.dataframe(
+                performance_style,
                 hide_index=True,
                 use_container_width=True,
             )
@@ -746,17 +846,36 @@ with tab_resultats:
                     "Prédit N4",
                 ],
             )
+
+            matrice_style = (
+                matrice_df.style
+                .apply(style_matrice, axis=None)
+                .set_properties(
+                    **{
+                        "text-align": "center",
+                        "font-size": "1rem",
+                    }
+                )
+            )
             st.dataframe(
-                matrice_df,
+                matrice_style,
                 use_container_width=True,
+            )
+            st.caption(
+                "La diagonale verte correspond aux bonnes prédictions. "
+                "Les cases orange/rouges montrent les confusions."
             )
 
         st.markdown("#### Détail prédiction vs réalité")
 
-        filtre_1, filtre_2, filtre_3 = st.columns([1.4, .8, .8])
+        filtre_1, filtre_2, filtre_3 = st.columns(
+            [1.4, .8, .8]
+        )
 
         departements_resultats = ["Tous"] + sorted(
-            comparaison_2026["departement"].dropna().unique().tolist()
+            comparaison_2026[
+                "departement"
+            ].dropna().unique().tolist()
         )
         departement_filtre = filtre_1.selectbox(
             "Département",
@@ -780,24 +899,33 @@ with tab_resultats:
 
         if departement_filtre != "Tous":
             detail = detail[
-                detail["departement"] == departement_filtre
+                detail["departement"]
+                == departement_filtre
             ]
 
         if echeance_filtre != "Toutes":
             detail = detail[
-                detail["echeance"] == echeance_filtre
+                detail["echeance"]
+                == echeance_filtre
             ]
 
         if resultat_filtre != "Tous":
             detail = detail[
-                detail["resultat"] == resultat_filtre
+                detail["resultat"]
+                == resultat_filtre
             ]
 
-        detail["Réel"] = detail["niveau_reel"].map(libelle_niveau)
-        detail["Prédit"] = detail["niveau_predit"].map(libelle_niveau)
+        detail["Réel"] = detail[
+            "niveau_reel"
+        ].map(libelle_niveau)
+        detail["Prédit"] = detail[
+            "niveau_predit"
+        ].map(libelle_niveau)
         detail["Confiance"] = detail["confiance"]
         detail["Écart"] = detail["ecart"]
-        detail["Date"] = detail["date_publication"].dt.date
+        detail["Date"] = detail[
+            "date_publication"
+        ].dt.date
 
         tableau = detail[
             [
@@ -820,16 +948,24 @@ with tab_resultats:
             }
         )
 
+        tableau_style = (
+            tableau.style
+            .map(couleur_niveau, subset=["Réel", "Prédit"])
+            .map(couleur_ecart, subset=["Écart"])
+            .map(couleur_resultat, subset=["Résultat"])
+            .format({"Confiance": "{:.1%}"})
+        )
+
         st.dataframe(
-            tableau.style.format(
-                {"Confiance": "{:.1%}"}
-            ),
+            tableau_style,
             hide_index=True,
             use_container_width=True,
             height=430,
         )
 
-        csv = tableau.to_csv(index=False).encode("utf-8-sig")
+        csv = tableau.to_csv(
+            index=False
+        ).encode("utf-8-sig")
         st.download_button(
             "⬇️ Télécharger la comparaison 2026",
             data=csv,
@@ -838,269 +974,27 @@ with tab_resultats:
             use_container_width=True,
         )
 
-        with st.expander("Comment lire les écarts ?"):
+        with st.expander("Comment lire les résultats ?"):
             st.write(
                 "**Écart = niveau prédit − niveau officiel.** "
-                "Un écart de 0 signifie que le modèle retrouve exactement "
-                "Météo-France. +1 signifie qu'il prédit un niveau plus élevé ; "
-                "-1 un niveau plus faible."
+                "0 signifie que le modèle retrouve exactement "
+                "Météo-France. +1 signifie qu'il prédit un niveau "
+                "plus élevé ; -1 un niveau plus faible."
             )
             st.write(
-                "Le F1 macro donne le même poids aux quatre niveaux. "
-                "Il est utile ici car les classes sont déséquilibrées : "
-                "les niveaux 3 et surtout 4 sont beaucoup plus rares."
+                "Le **F1 macro** donne le même poids aux quatre niveaux. "
+                "Il est utile ici car les niveaux 3 et surtout 4 "
+                "sont beaucoup plus rares."
             )
-
-
-with tab_simulation:
-    st.markdown(
-        '<div class="section-title">Tester un scénario météo</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        '<div class="section-subtitle">'
-        'Choisir un point du référentiel, saisir les conditions météo '
-        'et estimer le niveau départemental pour aujourd’hui, J+1 et J+2.'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
-    if not FICHIER_PIPELINE_SIMULATION.exists():
-        st.warning(
-            "Le modèle du simulateur n'est pas encore entraîné. "
-            "Après avoir récupéré cette mise à jour, lance :"
-        )
-        st.code(
-            "uv run dbt build --project-dir fourcasters\n"
-            "uv run python scripts/entrainer_ml_simulation.py",
-            language="bash",
-        )
-    else:
-        try:
-            modele_simulation = charger_pipeline_simulation()
-        except Exception as erreur:
-            st.error(
-                f"Impossible de charger le modèle du simulateur : {erreur}"
-            )
-            st.stop()
-
-        departements_ref = (
-            referentiel[
-                ["numero_departement", "departement"]
-            ]
-            .drop_duplicates()
-            .sort_values("numero_departement")
-        )
-
-        departements_ref["libelle"] = (
-            departements_ref["numero_departement"]
-            + " — "
-            + departements_ref["departement"]
-        )
-
-        with st.expander("Comment lire le simulateur ?"):
-            st.write(
-                "Le niveau **Aujourd'hui** est appris à partir du niveau J1 "
-                "publié la veille pour cette date. Les niveaux **J+1** et "
-                "**J+2** correspondent aux horizons du bulletin publié le jour "
-                "de référence. Le modèle utilise la météo saisie sur le point "
-                "choisi et produit une estimation au niveau du département."
-            )
-
-        with st.form("formulaire_simulation"):
-            localisation_1, localisation_2 = st.columns([1, 1.45])
-
-            departement_choisi = localisation_1.selectbox(
-                "Département",
-                departements_ref["libelle"].tolist(),
-            )
-            code_departement = departement_choisi.split(
-                " — ",
-                maxsplit=1,
-            )[0]
-
-            villes = referentiel[
-                referentiel["numero_departement"]
-                == code_departement
-            ].copy()
-
-            ville_libelles = {
-                f"{ligne.commune} · {ligne.service}": ligne.code_insee
-                for ligne in villes.itertuples()
-            }
-
-            ville_choisie = localisation_2.selectbox(
-                "Ville / point météo",
-                list(ville_libelles),
-            )
-            code_insee = ville_libelles[ville_choisie]
-
-            point = villes[
-                villes["code_insee"] == code_insee
-            ].iloc[0]
-
-            st.markdown(
-                f"""
-                <div class="location-card">
-                    📍 <strong>{point['commune']}</strong> ·
-                    {point['departement']}<br>
-                    <span style="opacity:.72">
-                    {point['latitude']:.4f}, {point['longitude']:.4f}
-                    · {point['service']}
-                    </span>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            st.markdown("#### Conditions météo du jour")
-
-            meteo_1, meteo_2, meteo_3 = st.columns(3)
-            temperature_moyenne = meteo_1.number_input(
-                "Température moyenne (°C)",
-                min_value=-30.0,
-                max_value=50.0,
-                value=25.0,
-                step=.5,
-            )
-            temperature_maximale = meteo_2.number_input(
-                "Température maximale (°C)",
-                min_value=-30.0,
-                max_value=55.0,
-                value=31.0,
-                step=.5,
-            )
-            humidite_moyenne = meteo_3.number_input(
-                "Humidité moyenne (%)",
-                min_value=0.0,
-                max_value=100.0,
-                value=45.0,
-                step=1.0,
-            )
-
-            meteo_4, meteo_5 = st.columns(2)
-            precipitations = meteo_4.number_input(
-                "Précipitations (mm)",
-                min_value=0.0,
-                max_value=300.0,
-                value=0.0,
-                step=.5,
-            )
-            rafale_vent_maximale = meteo_5.number_input(
-                "Rafale maximale (km/h)",
-                min_value=0.0,
-                max_value=250.0,
-                value=35.0,
-                step=1.0,
-            )
-
-            lancer_simulation = st.form_submit_button(
-                "🔥 Estimer le danger incendie",
-                type="primary",
-                use_container_width=True,
-            )
-
-        if lancer_simulation:
-            if temperature_maximale < temperature_moyenne:
-                st.error(
-                    "La température maximale doit être supérieure "
-                    "ou égale à la température moyenne."
-                )
-            else:
-                vpd = calculer_vpd(
-                    temperature_maximale,
-                    humidite_moyenne,
-                )
-
-                entrees = creer_entrees_simulation(
-                    latitude=float(point["latitude"]),
-                    longitude=float(point["longitude"]),
-                    temperature_moyenne=temperature_moyenne,
-                    temperature_maximale=temperature_maximale,
-                    humidite_moyenne=humidite_moyenne,
-                    precipitations=precipitations,
-                    rafale_vent_maximale=rafale_vent_maximale,
-                    deficit_pression_vapeur_maximal=vpd,
-                )
-
-                predictions = modele_simulation.predict(entrees)
-                probabilites = modele_simulation.predict_proba(
-                    entrees
-                )
-
-                horizons = [
-                    "Aujourd'hui",
-                    "J+1 · Demain",
-                    "J+2 · Après-demain",
-                ]
-
-                colonnes_resultat = st.columns(3)
-                for index_horizon, colonne in enumerate(
-                    colonnes_resultat
-                ):
-                    niveau = int(predictions[index_horizon])
-                    confiance = float(
-                        probabilites[index_horizon].max()
-                    )
-                    with colonne:
-                        carte_niveau(
-                            horizons[index_horizon],
-                            niveau,
-                            confiance,
-                        )
-
-                st.write("")
-                metrique_1, metrique_2, metrique_3 = st.columns(3)
-                metrique_1.metric(
-                    "Point météo",
-                    str(point["commune"]),
-                )
-                metrique_2.metric(
-                    "VPD estimé",
-                    f"{vpd:.2f} kPa",
-                )
-                metrique_3.metric(
-                    "Département",
-                    str(point["numero_departement"]),
-                )
-
-                with st.expander(
-                    "Voir le détail des probabilités"
-                ):
-                    tableau_probabilites = pd.DataFrame(
-                        probabilites,
-                        columns=[
-                            f"Niveau {int(classe)}"
-                            for classe in modele_simulation.classes_
-                        ],
-                        index=horizons,
-                    )
-                    st.dataframe(
-                        tableau_probabilites.style.format(
-                            "{:.1%}"
-                        ),
-                        use_container_width=True,
-                    )
-
-                st.markdown(
-                    """
-                    <div class="small-note">
-                        La ville sert de point météo de référence.
-                        Le niveau prédit reste un niveau départemental.
-                        Le VPD est estimé automatiquement à partir de la
-                        température maximale et de l'humidité saisies.
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
 
 
 st.markdown(
     """
     <div class="footer-note">
-        Fourcasters est un prototype étudiant. Les estimations affichées
-        ne remplacent pas les informations officielles de Météo-France
-        et ne doivent pas être utilisées comme outil opérationnel.
+        Fourcasters est un prototype étudiant. Le modèle cherche à
+        reproduire le niveau de danger Météo-France ; il ne prédit pas
+        les départs de feu réels et ne remplace pas les informations
+        officielles.
     </div>
     """,
     unsafe_allow_html=True,
