@@ -24,13 +24,22 @@ def main() -> None:
 
     print(f"Train : {resultats['nb_train']:,} lignes")
     print(f"Test  : {resultats['nb_test']:,} lignes")
-    print(f"Dernier jour du train : {resultats['fin_train']}")
-    print(f"Premier jour du test  : {resultats['debut_test']}")
-    print(f"Fenêtre météo          : {resultats['fenetre_meteo']}")
-    print(f"Lignes laissées entre les deux périodes : {resultats['nb_ecartes']}")
+    print(
+        "Période d'apprentissage : "
+        f"{resultats['debut_train']} -> {resultats['fin_train']}"
+    )
+    print(
+        "Période de test          : "
+        f"{resultats['debut_test']} -> {resultats['fin_test']}"
+    )
+    print(f"Fenêtre météo            : {resultats['fenetre_meteo']}")
+    print(f"Lignes hors 2024-2026    : {resultats['nb_hors_periode']}")
 
     print(f"\nAccuracy : {resultats['accuracy']:.2%}")
-    print(f"Référence (classe majoritaire) : {resultats['accuracy_reference']:.2%}")
+    print(
+        "Référence naïve (classe majoritaire) : "
+        f"{resultats['accuracy_reference']:.2%}"
+    )
     print(f"F1 macro : {resultats['f1_macro']:.3f}")
 
     print("\nRapport de classification")
