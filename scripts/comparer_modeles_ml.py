@@ -23,8 +23,10 @@ def main() -> None:
 
     x, y = preparer_donnees(donnees)
 
-    dates = pd.to_datetime(donnees.loc[x.index, "date_publication"])
-    train, test = separer_dates(dates)
+    dates_prevision = pd.to_datetime(
+        donnees.loc[x.index, "date_prevision"]
+    )
+    train, test = separer_dates(dates_prevision)
 
     x_train = x.loc[train]
     x_test = x.loc[test]
@@ -33,7 +35,7 @@ def main() -> None:
     y_test = y.loc[test]
 
     modeles = {
-        "Classe majoritaire": DummyClassifier(
+        "Référence naïve - classe majoritaire": DummyClassifier(
             strategy="most_frequent",
         ),
         "Régression logistique": make_pipeline(
@@ -55,6 +57,7 @@ def main() -> None:
 
     print()
     print("COMPARAISON DES MODÈLES")
+    print("Apprentissage : cibles 2024-2025 | Test : cibles 2026")
     print("=" * 65)
 
     for nom, modele in modeles.items():
