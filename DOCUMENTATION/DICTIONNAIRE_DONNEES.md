@@ -161,7 +161,7 @@ Grain : **une ligne par date de publication et département**.
 | --- | --- | --- |
 | id_feature | STRING | Identifiant unique de la ligne de features. |
 | date_publication | DATE | Date du bulletin Météo-France. |
-| meteo_date | DATE | Date météo de référence utilisée pour le ML, publication - 7 jours. |
+| meteo_date | DATE | Dernier jour de la fenêtre météo utilisée par le ML. Il correspond à la date de publication D. |
 | numero_departement | STRING | Département. |
 | departement | STRING | Nom du département. |
 | region | STRING | Région. |
@@ -173,14 +173,14 @@ Grain : **une ligne par date de publication et département**.
 | precipitations_moyennes | FLOAT64 | Précipitations moyennes des points. |
 | rafale_vent_maximale | FLOAT64 | Rafale maximale. |
 | deficit_pression_vapeur_maximal | FLOAT64 | VPD maximal. |
-| temperature_moyenne_7j | FLOAT64 | Température moyenne sur la fenêtre de 7 jours. |
-| temperature_maximale_7j | FLOAT64 | Température maximale sur la fenêtre. |
-| humidite_moyenne_7j | FLOAT64 | Humidité moyenne sur la fenêtre. |
-| precipitations_7j | FLOAT64 | Somme des précipitations agrégées sur la fenêtre. |
-| precipitations_moyennes_7j | FLOAT64 | Somme des précipitations moyennes sur la fenêtre complète. |
-| rafale_vent_maximale_7j | FLOAT64 | Rafale maximale sur la fenêtre. |
-| deficit_pression_vapeur_maximal_7j | FLOAT64 | VPD maximal sur la fenêtre. |
-| jours_sans_pluie_7j | INT64 | Nombre de jours sans pluie sur la fenêtre. |
+| temperature_moyenne_7j | FLOAT64 | Température moyenne sur D-6 à D. |
+| temperature_maximale_7j | FLOAT64 | Température maximale sur D-6 à D. |
+| humidite_moyenne_7j | FLOAT64 | Humidité moyenne sur D-6 à D. |
+| precipitations_7j | FLOAT64 | Somme des précipitations agrégées sur D-6 à D. |
+| precipitations_moyennes_7j | FLOAT64 | Somme des précipitations moyennes sur D-6 à D. |
+| rafale_vent_maximale_7j | FLOAT64 | Rafale maximale sur D-6 à D. |
+| deficit_pression_vapeur_maximal_7j | FLOAT64 | VPD maximal sur D-6 à D. |
+| jours_sans_pluie_7j | INT64 | Nombre de jours sans pluie entre D-6 et D. |
 | nombre_jours_meteo_7j | INT64 | Nombre de jours météo complets disponibles. |
 | meteo_disponible | BOOL | Vrai lorsque les 7 jours nécessaires sont complets. |
 
@@ -202,7 +202,7 @@ Les variables météo viennent de `ml_features_incendie`. Les colonnes suppléme
 | echeance | STRING | Échéance Météo-France. | J1 / J2 |
 | horizon_jours | INT64 | Échéance sous forme numérique. | 1 / 2 |
 | cible_niveau_danger | INT64 | Cible du modèle ML. | 1 à 4 |
-| meteo_date | DATE | Date météo de référence. | publication - 7 jours |
+| meteo_date | DATE | Dernier jour météo connu utilisé pour la prédiction. | date de publication D |
 | meteo_disponible | BOOL | Indique si la fenêtre météo est complète. | true / false |
 
 Les autres colonnes de `ml_train_incendie` reprennent les variables météo simples et sur 7 jours décrites dans `ml_features_incendie`.
