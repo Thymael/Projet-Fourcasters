@@ -4,7 +4,7 @@ L'objectif n'est pas de rendre Fourcasters parfaitement optimisé, mais d'évite
 
 ## 1. Collecte
 
-Open-Meteo est interrogé uniquement lorsqu'une journée est absente ou incomplète dans BigQuery. Les 360 points sont regroupés par lots et un CSV temporaire permet de reprendre une collecte interrompue.
+Open-Meteo est interrogé uniquement lorsqu'une journée est absente ou incomplète dans BigQuery. Les 360 points sont regroupés par lots et un fichier Parquet permet de charger proprement le lot.
 
 Météo-France est récupéré séparément et les archives historiques ne sont pas retéléchargées chaque jour.
 
@@ -14,7 +14,7 @@ Météo-France est récupéré séparément et les archives historiques ne sont 
 
 Les nouveaux lots passent par un fichier Parquet et une table Landing avant d'être fusionnés dans l'historique BigQuery. Cela crée quelques fichiers temporaires, mais permet de contrôler le lot avant de modifier l'historique.
 
-Les CSV et Parquet générés sont exclus de Git.
+Les fichiers générés sont exclus de Git.
 
 **Choix retenu :** garder cette étape de contrôle plutôt que simplifier au prix de la fiabilité.
 
@@ -28,18 +28,20 @@ Pour ce projet étudiant, la priorité reste un SQL lisible et facile à vérifi
 
 ## 4. Machine Learning
 
-Le Random Forest a été comparé à des modèles plus simples :
+Le Random Forest n'est pas réentraîné automatiquement chaque jour. Il est lancé à la demande, après construction des tables dbt.
+
+Dernier entraînement après correction de la fenêtre météo D-6 à D :
 
 | Modèle | Accuracy | F1 macro |
 | --- | ---: | ---: |
-| Classe majoritaire | 38,43 % | — |
-| Régression logistique | 29,06 % | 0,253 |
-| Arbre de décision | 37,46 % | 0,275 |
-| Random Forest | 55,51 % | 0,338 |
+| Classe majoritaire | 35,48 % | — |
+| Random Forest | 62,54 % | 0,404 |
 
-Le modèle n'est pas réentraîné automatiquement chaque jour. Une mesure ponctuelle CodeCarbon a estimé l'entraînement à environ 0,000002 kg de CO2 sur la machine utilisée.
+L'ancienne version du modèle utilisait une fenêtre D-13 à D-7 et obtenait 55,51 % d'accuracy pour 0,338 de F1 macro. La correction temporelle améliore donc les résultats, sans ajouter de collecte API ni d'entraînement automatique.
 
-**Choix retenu :** pas de grosse recherche automatique de paramètres tant que les limites viennent surtout des données et des classes rares.
+Une mesure ponctuelle CodeCarbon a estimé l'entraînement à environ 0,000002 kg de CO2 sur la machine utilisée.
+
+**Choix retenu :** garder un modèle simple, réentraîné manuellement, plutôt qu'une grosse recherche automatique de paramètres.
 
 ## 5. Restitution
 
@@ -47,6 +49,6 @@ Power BI présente les analyses et Streamlit présente uniquement le prototype M
 
 ## Bilan
 
-Les principaux choix de sobriété sont : collecte incrémentale, reprise après interruption, chargement par lots, fichiers générés exclus de Git, entraînement ML à la demande et absence d'optimisation massive des hyperparamètres.
+Les principaux choix de sobriété sont : collecte incrémentale, chargement par lots, fichiers générés exclus de Git, entraînement ML à la demande et absence d'optimisation massive des hyperparamètres.
 
 Ce niveau est suffisant pour le besoin et le niveau du projet.
