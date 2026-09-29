@@ -18,9 +18,11 @@ La cible du modèle est le niveau de danger publié par Météo-France. Fourcast
 
 ### Limites du modèle
 
-Après correction de la fenêtre météo, le Random Forest obtient environ 62,5 % d'accuracy sur la période de test, avec un F1 macro de 0,404. C'est mieux que l'ancienne version, mais cela reste un prototype.
+Le modèle est désormais entraîné uniquement sur les cibles Météo-France de **2024 et 2025** puis évalué sur les cibles **2026** disponibles. Cette séparation annuelle évite d'utiliser une partie de 2026 pendant l'apprentissage.
 
-Les niveaux 1 et 2 sont les mieux reconnus. Les niveaux 3 et surtout 4 restent plus difficiles, car ils sont moins fréquents dans les données de test. L'accuracy seule ne suffit donc pas : le F1 macro, le rappel par classe et la matrice de confusion doivent être présentés.
+Le résultat de **62,54 % d'accuracy** et **0,404 de F1 macro** correspond à l'ancien split temporel 80/20. Il reste une référence historique et doit être remplacé par les métriques du nouveau test 2026 après réentraînement.
+
+L'accuracy seule ne suffit pas : le F1 macro, le rappel par classe et la matrice de confusion doivent être présentés.
 
 L'application Streamlit est une démonstration du modèle, pas un outil d'aide à la décision opérationnelle.
 
