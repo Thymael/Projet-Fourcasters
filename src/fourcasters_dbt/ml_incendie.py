@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 TABLE_ML = f"{PROJET_GCP}.{DATASET_ANALYSE}.ml_train_incendie"
 FICHIER_PIPELINE = RACINE_PROJET / "pipeline.pkl"
 COLONNE_CIBLE = "cible_niveau_danger"
+VERSION_FEATURES = "meteo_D-6_a_D_v2"
 
 COLONNES_CONTEXTE = [
     "date_publication",
@@ -145,6 +146,7 @@ def entrainer_modele(donnees: pd.DataFrame):
 
     modele = creer_modele()
     modele.fit(x_train, y_train)
+    modele.fourcasters_feature_version = VERSION_FEATURES
     predictions = modele.predict(x_test)
 
     reference = DummyClassifier(strategy="most_frequent")
@@ -178,6 +180,7 @@ def entrainer_modele(donnees: pd.DataFrame):
         "nb_ecartes": int((~train & ~test).sum()),
         "fin_train": dates.loc[train].max().date(),
         "debut_test": dates.loc[test].min().date(),
+        "fenetre_meteo": "D-6 à D",
     }
     return modele, resultats
 
