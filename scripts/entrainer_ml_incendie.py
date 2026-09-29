@@ -26,6 +26,7 @@ def main() -> None:
     print(f"Test  : {resultats['nb_test']:,} lignes")
     print(f"Dernier jour du train : {resultats['fin_train']}")
     print(f"Premier jour du test  : {resultats['debut_test']}")
+    print(f"Fenêtre météo          : {resultats['fenetre_meteo']}")
     print(f"Lignes laissées entre les deux périodes : {resultats['nb_ecartes']}")
 
     print(f"\nAccuracy : {resultats['accuracy']:.2%}")
