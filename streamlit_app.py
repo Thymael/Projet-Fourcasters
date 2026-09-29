@@ -8,6 +8,7 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score
 from fourcasters_dbt.ml_incendie import (
     COLONNE_CIBLE,
     FICHIER_PIPELINE,
+    VERSION_FEATURES,
     charger_donnees,
     preparer_donnees,
     separer_dates,
@@ -258,7 +259,14 @@ NOMS_NIVEAUX = {
 
 @st.cache_resource
 def charger_pipeline_historique():
-    return joblib.load(FICHIER_PIPELINE)
+    modele = joblib.load(FICHIER_PIPELINE)
+    version = getattr(modele, "fourcasters_feature_version", None)
+    if version != VERSION_FEATURES:
+        raise ValueError(
+            "Le pipeline.pkl a été entraîné avec l'ancienne fenêtre météo. "
+            "Relance scripts/entrainer_ml_incendie.py après dbt build."
+        )
+    return modele
 
 
 @st.cache_data(ttl=3600)
@@ -655,6 +663,10 @@ with tab_resultats:
         st.caption(
             "Il ne prédit pas le départ réel d'un feu et ne remplace pas "
             "les informations officielles."
+        )
+        st.info(
+            "Fenêtre météo utilisée : les 7 derniers jours connus, "
+            "de D−6 à D. J1 cible D+1 et J2 cible D+2."
         )
 
     comparaison = construire_comparaison_test()
