@@ -948,13 +948,17 @@ with tab_resultats:
         ].map(libelle_niveau)
         detail["Confiance"] = detail["confiance"]
         detail["Écart"] = detail["ecart"]
-        detail["Date"] = detail[
+        detail["Date prévue"] = detail[
+            "date_prevision"
+        ].dt.date
+        detail["Bulletin"] = detail[
             "date_publication"
         ].dt.date
 
         tableau = detail[
             [
-                "Date",
+                "Date prévue",
+                "Bulletin",
                 "numero_departement",
                 "departement",
                 "echeance",
@@ -1005,6 +1009,11 @@ with tab_resultats:
                 "0 signifie que le modèle retrouve exactement "
                 "Météo-France. +1 signifie qu'il prédit un niveau "
                 "plus élevé ; -1 un niveau plus faible."
+            )
+            st.write(
+                "La **référence naïve** utilise un DummyClassifier : "
+                "elle prédit toujours la classe la plus fréquente dans "
+                "l'apprentissage 2024-2025. Elle sert uniquement de repère minimal."
             )
             st.write(
                 "Le **F1 macro** donne le même poids aux quatre niveaux. "
