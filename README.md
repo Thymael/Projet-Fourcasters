@@ -230,6 +230,17 @@ Comparer les modèles :
 uv run python scripts/comparer_modeles_ml.py
 ```
 
+Comparaison finale sur le même découpage **apprentissage 2024-2025 → test 2026** :
+
+| Modèle | Accuracy | F1 macro |
+| --- | ---: | ---: |
+| Référence naïve — classe majoritaire | 42,28 % | 0,149 |
+| Régression logistique | 48,60 % | 0,381 |
+| Arbre de décision | 52,68 % | 0,404 |
+| **Random Forest** | **64,35 %** | **0,417** |
+
+Le Random Forest est conservé pour le prototype : sur le même jeu de test 2026, il obtient les meilleures performances parmi les modèles comparés.
+
 Mesurer ponctuellement l'impact de l'entraînement avec CodeCarbon :
 
 ```bash
