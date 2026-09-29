@@ -108,6 +108,6 @@ ml_features_incendie
               pipeline.pkl
 ```
 
-- `ml_features_incendie` prépare les variables météo disponibles avant la publication.
-- `ml_train_incendie` ajoute la cible Météo-France de niveau 1 à 4.
+- `ml_features_incendie` prépare les variables météo des 7 derniers jours connus au moment de la publication, de D-6 à D.
+- `ml_train_incendie` ajoute la cible Météo-France : J1 = D+1 et J2 = D+2.
 - Ces tables servent à l'entraînement du modèle et ne remplacent pas les tables Power BI.
