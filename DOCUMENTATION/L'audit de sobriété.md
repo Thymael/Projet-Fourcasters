@@ -30,14 +30,11 @@ Pour ce projet étudiant, la priorité reste un SQL lisible et facile à vérifi
 
 Le Random Forest n'est pas réentraîné automatiquement chaque jour. Il est lancé à la demande, après construction des tables dbt.
 
-Dernier entraînement après correction de la fenêtre météo D-6 à D :
+La fenêtre météo utilisée est D-6 à D. Le modèle apprend maintenant uniquement sur les cibles Météo-France de 2024 et 2025, puis il est évalué sur toutes les cibles 2026 disponibles.
 
-| Modèle | Accuracy | F1 macro |
-| --- | ---: | ---: |
-| Classe majoritaire | 35,48 % | — |
-| Random Forest | 62,54 % | 0,404 |
+Le dernier résultat connu avant ce nouveau split annuel était de **62,54 % d'accuracy** et **0,404 de F1 macro** avec un split temporel 80/20. Il sert uniquement de comparaison historique et doit être remplacé par le résultat 2024-2025 → 2026 après réentraînement.
 
-L'ancienne version du modèle utilisait une fenêtre D-13 à D-7 et obtenait 55,51 % d'accuracy pour 0,338 de F1 macro. La correction temporelle améliore donc les résultats, sans ajouter de collecte API ni d'entraînement automatique.
+La référence naïve est un `DummyClassifier(strategy="most_frequent")`. Elle prédit toujours la classe la plus fréquente dans les données d'apprentissage et sert seulement de repère minimal à battre.
 
 Une mesure ponctuelle CodeCarbon a estimé l'entraînement à environ 0,000002 kg de CO2 sur la machine utilisée.
 
