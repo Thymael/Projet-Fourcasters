@@ -28,14 +28,14 @@ def main() -> None:
     print()
     print("Résultats")
     print("=" * 40)
+    print(f"Train : {resultats['nb_train']:,} lignes")
+    print(f"Test  : {resultats['nb_test']:,} lignes")
+    print(f"Période test : {resultats['debut_test']} -> {resultats['fin_test']}")
     print(f"Accuracy : {resultats['accuracy']:.2%}")
     print(f"F1 macro : {resultats['f1_macro']:.3f}")
-    print(f"Émissions estimées : {emissions:.6f} kg de CO2")
+    print(f"Émissions estimées : {emissions:.6f} kg CO2e")
+    print(f"Émissions estimées : {emissions * 1000:.3f} g CO2e")
 
 
 if __name__ == "__main__":
     main()
-
-
-# Mesure réalisée le 11/09/2026 :
-# environ 0.000002 kg de CO2 pour l'entraînement du modèle.
