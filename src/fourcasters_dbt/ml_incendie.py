@@ -24,10 +24,11 @@ logger = logging.getLogger(__name__)
 TABLE_ML = f"{PROJET_GCP}.{DATASET_ANALYSE}.ml_train_incendie"
 FICHIER_PIPELINE = RACINE_PROJET / "pipeline.pkl"
 COLONNE_CIBLE = "cible_niveau_danger"
-VERSION_FEATURES = "meteo_D-6_a_D_train_2024_2025_test_2026_v3"
+VERSION_FEATURES = "meteo_J-6_a_J_train_2024_2025_test_2026_fin_2026-10-02_v4"
 
 ANNEES_APPRENTISSAGE = (2024, 2025)
 ANNEE_TEST = 2026
+DATE_FIN_TEST = pd.Timestamp("2026-10-02")
 
 COLONNES_CONTEXTE = [
     "date_publication",
@@ -97,7 +98,7 @@ def preparer_donnees(donnees: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
 
 
 def separer_dates(dates_prevision: pd.Series) -> tuple[pd.Series, pd.Series]:
-    """Sépare 2024-2025 pour l'apprentissage et 2026 pour le test."""
+    """Sépare 2024-2025 pour l'apprentissage et 2026 jusqu'au 02/10 pour le test."""
     dates_prevision = pd.to_datetime(
         dates_prevision,
         errors="raise",
@@ -108,12 +109,12 @@ def separer_dates(dates_prevision: pd.Series) -> tuple[pd.Series, pd.Series]:
 
     annees = dates_prevision.dt.year
     train = annees.isin(ANNEES_APPRENTISSAGE)
-    test = annees.eq(ANNEE_TEST)
+    test = annees.eq(ANNEE_TEST) & dates_prevision.le(DATE_FIN_TEST)
 
     if not train.any():
         raise ValueError("Aucune donnée 2024-2025 disponible pour l'apprentissage.")
     if not test.any():
-        raise ValueError("Aucune donnée 2026 disponible pour le test.")
+        raise ValueError("Aucune donnée 2026 jusqu’au 02/10 disponible pour le test.")
 
     return train, test
 
@@ -174,6 +175,14 @@ def entrainer_modele(donnees: pd.DataFrame):
     resultats = {
         "accuracy": accuracy_score(y_test, predictions),
         "accuracy_reference": accuracy_score(y_test, prediction_reference),
+        "f1_macro_reference": f1_score(
+            y_test,
+            prediction_reference,
+            labels=[1, 2, 3, 4],
+            average="macro",
+            zero_division=0,
+        ),
+        "classe_reference": int(y_train.mode().iloc[0]),
         "f1_macro": f1_score(
             y_test,
             predictions,
@@ -205,7 +214,8 @@ def entrainer_modele(donnees: pd.DataFrame):
         "fin_test": dates_prevision.loc[test].max().date(),
         "annees_train": "2024-2025",
         "annee_test": "2026",
-        "fenetre_meteo": "D-6 à D",
+        "fenetre_meteo": "J-6 à J",
+        "date_fin_test": DATE_FIN_TEST.date(),
     }
     return modele, resultats
 
