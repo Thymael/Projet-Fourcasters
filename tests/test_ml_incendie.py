@@ -10,6 +10,7 @@ from fourcasters_dbt.ml_incendie import (
     ANNEE_TEST,
     ANNEES_APPRENTISSAGE,
     COLONNES_MODELE,
+    DATE_FIN_TEST,
     VERSION_FEATURES,
     creer_modele,
     entrainer_modele,
@@ -89,6 +90,26 @@ def test_split_2024_2025_train_et_2026_test():
     assert not (train & test).any()
 
 
+def test_split_2026_sarrete_au_2_octobre():
+    dates = pd.Series(
+        pd.to_datetime(
+            [
+                "2024-06-01",
+                "2026-10-01",
+                "2026-10-02",
+                "2026-10-03",
+            ]
+        )
+    )
+
+    train, test = separer_dates(dates)
+
+    assert train.sum() == 1
+    assert test.sum() == 2
+    assert dates[test].max().normalize() == DATE_FIN_TEST
+    assert not test.iloc[3]
+
+
 def test_split_ignore_les_annees_hors_periode():
     dates = pd.Series(
         pd.to_datetime(
@@ -151,7 +172,9 @@ def test_entrainement_2024_2025_et_test_2026():
     assert resultats["debut_test"].year == 2026
     assert resultats["fin_test"].year == 2026
     assert resultats["accuracy_reference"] == 0.25
+    assert resultats["f1_macro_reference"] == pytest.approx(0.1)
+    assert resultats["date_fin_test"] == DATE_FIN_TEST.date()
     assert resultats["matrice_confusion"].shape == (4, 4)
     assert resultats["matrice_confusion"].sum() == 16
-    assert resultats["fenetre_meteo"] == "D-6 à D"
+    assert resultats["fenetre_meteo"] == "J-6 à J"
     assert modele.fourcasters_feature_version == VERSION_FEATURES
