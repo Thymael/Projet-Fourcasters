@@ -30,15 +30,13 @@ Pour ce projet étudiant, la priorité reste un SQL lisible et facile à vérifi
 
 Le Random Forest n'est pas réentraîné automatiquement chaque jour. Il est lancé à la demande, après construction des tables dbt.
 
-La fenêtre météo utilisée est D-6 à D. Le modèle apprend maintenant uniquement sur les cibles Météo-France de 2024 et 2025, puis il est évalué sur toutes les cibles 2026 disponibles.
+La fenêtre météo finale est **J-6 à J**, avec J défini comme la date de référence disposant de la météo nécessaire. Le modèle apprend uniquement sur les cibles Météo-France de **2024 et 2025**, puis il est évalué sur les cibles **2026 jusqu'au 2 octobre inclus**.
 
-Avec le split annuel final, le Random Forest est entraîné sur **46 080 lignes** de 2024-2025 et testé sur **21 504 lignes** de 2026. Il obtient **64,35 % d'accuracy** et **0,417 de F1 macro**.
+Le support final indique un ordre de grandeur d'environ **71 000 observations exploitables**, réparties en environ **46 500 lignes d'apprentissage** et **24 400 lignes de test**. Les effectifs et performances exacts sont volontairement lus dans la sortie du dernier entraînement plutôt que recopiés ici avant la clôture du dataset.
 
-La référence naïve obtient **42,28 % d'accuracy**. C'est un `DummyClassifier(strategy="most_frequent")` : il prédit toujours la classe la plus fréquente dans les données d'apprentissage et sert seulement de repère minimal à battre.
+La référence naïve est un `DummyClassifier(strategy="most_frequent")` : elle apprend la classe majoritaire uniquement sur les données d'apprentissage 2024-2025, puis applique cette règle au test 2026. Son accuracy et son F1 macro doivent être recalculés avec le même jeu de test final que le Random Forest.
 
-L'ancien split temporel 80/20 obtenait 62,54 % d'accuracy et 0,404 de F1 macro. Il est conservé uniquement comme repère historique.
-
-Une mesure ponctuelle CodeCarbon a estimé l'entraînement à environ 0,000002 kg de CO2 sur la machine utilisée.
+La mesure CodeCarbon doit également être relancée sur le modèle final après le dernier `dbt build`. L'ancienne mesure n'est plus présentée comme résultat final car le jeu de données et le protocole ML ont évolué.
 
 **Choix retenu :** garder un modèle simple, réentraîné manuellement, plutôt qu'une grosse recherche automatique de paramètres.
 
