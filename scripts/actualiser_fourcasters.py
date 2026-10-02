@@ -2,6 +2,8 @@
 
 import argparse
 import logging
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 from google.cloud import bigquery
@@ -40,6 +42,7 @@ from fourcasters_dbt.openmeteo import (
 
 logger = logging.getLogger(__name__)
 NOMBRE_POINTS_ATTENDU = 360
+DATE_FIN_SAISON_INCENDIE = date(2026, 10, 2)
 
 
 def actualiser_journee_openmeteo(
@@ -134,6 +137,15 @@ def main_openmeteo() -> None:
 
 def main_incendie(mode_local: bool = False) -> None:
     """Lance la collecte incendie puis met à jour BigQuery."""
+
+    aujourd_hui = datetime.now(ZoneInfo("Europe/Paris")).date()
+    if aujourd_hui > DATE_FIN_SAISON_INCENDIE:
+        logger.info(
+            "✅ Saison Météo des forêts arrêtée au %s : "
+            "aucune nouvelle prévision incendie n’est collectée.",
+            DATE_FIN_SAISON_INCENDIE,
+        )
+        return
 
     logger.info("🔥 Actualisation Météo des forêts")
     api_key = lire_api_key()
