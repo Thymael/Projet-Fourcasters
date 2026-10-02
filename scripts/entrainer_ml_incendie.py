@@ -33,14 +33,17 @@ def main() -> None:
         f"{resultats['debut_test']} -> {resultats['fin_test']}"
     )
     print(f"Fenêtre météo            : {resultats['fenetre_meteo']}")
-    print(f"Lignes hors 2024-2026    : {resultats['nb_hors_periode']}")
+    print(f"Fin du test              : {resultats['date_fin_test']}")
+    print(f"Lignes hors split final  : {resultats['nb_hors_periode']}")
 
     print(f"\nAccuracy : {resultats['accuracy']:.2%}")
     print(
-        "Référence naïve (classe majoritaire) : "
+        "Référence naïve "
+        f"(N{resultats['classe_reference']}, classe majoritaire du train) : "
         f"{resultats['accuracy_reference']:.2%}"
     )
-    print(f"F1 macro : {resultats['f1_macro']:.3f}")
+    print(f"F1 macro référence : {resultats['f1_macro_reference']:.3f}")
+    print(f"F1 macro Random Forest : {resultats['f1_macro']:.3f}")
 
     print("\nRapport de classification")
     print(resultats["rapport"])
