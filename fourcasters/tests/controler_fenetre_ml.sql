@@ -1,5 +1,6 @@
 -- Contrat temporel du ML :
--- publication D -> météo D-6 à D -> J1 = D+1 / J2 = D+2.
+-- J = date de référence disposant de la météo.
+-- météo J-6 à J -> horizons J+1 et J+2.
 
 WITH anomalies_features AS (
     SELECT id_feature AS identifiant
