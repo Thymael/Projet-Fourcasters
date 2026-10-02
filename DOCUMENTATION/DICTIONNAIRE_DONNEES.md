@@ -173,14 +173,14 @@ Grain : **une ligne par date de publication et département**.
 | precipitations_moyennes | FLOAT64 | Précipitations moyennes des points. |
 | rafale_vent_maximale | FLOAT64 | Rafale maximale. |
 | deficit_pression_vapeur_maximal | FLOAT64 | VPD maximal. |
-| temperature_moyenne_7j | FLOAT64 | Température moyenne sur D-6 à D. |
-| temperature_maximale_7j | FLOAT64 | Température maximale sur D-6 à D. |
-| humidite_moyenne_7j | FLOAT64 | Humidité moyenne sur D-6 à D. |
-| precipitations_7j | FLOAT64 | Somme des précipitations agrégées sur D-6 à D. |
-| precipitations_moyennes_7j | FLOAT64 | Somme des précipitations moyennes sur D-6 à D. |
-| rafale_vent_maximale_7j | FLOAT64 | Rafale maximale sur D-6 à D. |
-| deficit_pression_vapeur_maximal_7j | FLOAT64 | VPD maximal sur D-6 à D. |
-| jours_sans_pluie_7j | INT64 | Nombre de jours sans pluie entre D-6 et D. |
+| temperature_moyenne_7j | FLOAT64 | Température moyenne sur J-6 à J. |
+| temperature_maximale_7j | FLOAT64 | Température maximale sur J-6 à J. |
+| humidite_moyenne_7j | FLOAT64 | Humidité moyenne sur J-6 à J. |
+| precipitations_7j | FLOAT64 | Somme des précipitations agrégées sur J-6 à J. |
+| precipitations_moyennes_7j | FLOAT64 | Somme des précipitations moyennes sur J-6 à J. |
+| rafale_vent_maximale_7j | FLOAT64 | Rafale maximale sur J-6 à J. |
+| deficit_pression_vapeur_maximal_7j | FLOAT64 | VPD maximal sur J-6 à J. |
+| jours_sans_pluie_7j | INT64 | Nombre de jours sans pluie entre J-6 et J. |
 | nombre_jours_meteo_7j | INT64 | Nombre de jours météo complets disponibles. |
 | meteo_disponible | BOOL | Vrai lorsque les 7 jours nécessaires sont complets. |
 
