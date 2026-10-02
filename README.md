@@ -186,17 +186,26 @@ Le modèle principal est un **Random Forest** avec un Pipeline scikit-learn :
 SimpleImputer → RandomForestClassifier
 ```
 
-Le découpage est maintenant fait par année de cible :
-- les niveaux Météo-France prévus pour **2024 et 2025** servent à l'apprentissage ;
-- toutes les cibles disponibles dont la `date_prevision` est en **2026** sont réservées au test ;
-- aucune cible 2026 n'est utilisée pour entraîner le modèle.
+La cible est le **niveau de danger incendie Météo-France (Météo des forêts)**, codé de 1 à 4. Dans le projet, les expressions « niveau de danger » et « risque d'incendie » renvoient à cette même référence officielle ; le modèle ne prédit pas un départ de feu réel.
 
-Ce choix permet de tester le modèle sur une année qu'il n'a jamais vue pendant l'apprentissage.
+Le découpage final est temporel :
+- les cibles **2024 et 2025** servent à l'apprentissage ;
+- les cibles **2026 jusqu'au 2 octobre inclus** servent au test ;
+- aucune cible 2026 n'est utilisée pendant l'apprentissage ;
+- toute cible postérieure au **02/10/2026** est exclue du split final.
 
-Pour un bulletin publié le jour **D**, le modèle utilise les **7 derniers jours météo connus, de D-6 à D** :
-- J1 cible le niveau de danger de D+1 ;
-- J2 cible le niveau de danger de D+2 ;
-- les deux horizons utilisent la même fenêtre D-6 → D, et `horizon_jours` permet au modèle de les distinguer.
+### Repère temporel
+
+**J** désigne la date de référence disposant des données météo nécessaires. Ce repère n'est donc pas automatiquement la date civile du jour : avec le décalage ERA5-Seamless, la dernière journée météo éligible se situe actuellement six jours avant la date d'exécution.
+
+Le modèle utilise les **7 jours météo de J-6 à J inclus** :
+- l'horizon 1 cible **J+1** ;
+- l'horizon 2 cible **J+2** ;
+- les deux horizons utilisent la même fenêtre J-6 → J et la variable `horizon_jours` les distingue.
+
+La collecte Open-Meteo ne télécharge pas cette fenêtre de sept jours à chaque exécution : elle récupère **une seule journée manquante ou incomplète**. La fenêtre de sept jours est construite ensuite dans dbt à partir de l'historique déjà stocké.
+
+### Entraînement final
 
 Entraîner et enregistrer le modèle :
 
@@ -204,48 +213,29 @@ Entraîner et enregistrer le modèle :
 uv run python scripts/entrainer_ml_incendie.py
 ```
 
-Le script crée `pipeline.pkl` à la racine du projet.
+Le script crée `pipeline.pkl` à la racine du projet et affiche les effectifs exacts, les périodes, l'accuracy, la référence naïve, le F1 macro, le rapport par classe et la matrice de confusion.
 
-Résultats du split annuel final :
+Le support de soutenance donne comme ordre de grandeur final **≈ 71 000 observations exploitables avant séparation**, dont **≈ 46 500** pour l'apprentissage et **≈ 24 400** pour le test. Les nombres exacts ne sont pas figés dans cette documentation : la sortie du dernier entraînement réalisé après le `dbt build` du 2 octobre constitue la référence finale.
 
-| Évaluation | Accuracy | F1 macro |
-| --- | ---: | ---: |
-| Référence naïve, classe majoritaire | **42,28 %** | — |
-| Random Forest | **64,35 %** | **0,417** |
+La référence naïve utilise `DummyClassifier(strategy="most_frequent")` : la classe majoritaire est **apprise uniquement sur le jeu d'entraînement 2024-2025**, puis appliquée au test 2026. Elle ne doit pas être décrite comme la classe majoritaire du jeu de test.
 
-- apprentissage : **46 080 lignes**, cibles du 04/06/2024 au 02/10/2025 ;
-- test : **21 504 lignes**, cibles du 29/05/2026 au 25/09/2026 ;
-- fenêtre météo : **D-6 à D** ;
-- aucune cible 2026 n'est utilisée pendant l'apprentissage.
-
-Le Random Forest dépasse la référence naïve de **22,07 points d'accuracy**. Les niveaux 1 et 2 sont les mieux reconnus. Le niveau 3 reste difficile (rappel 20 %) et le niveau 4 n'est pas correctement appris sur ce test (rappel 0 %), avec seulement 141 observations.
-
-À titre de comparaison, l'ancien split temporel 80/20 obtenait 62,54 % d'accuracy et 0,404 de F1 macro. Les deux scores ne sont pas strictement comparables car les jeux de test diffèrent.
-
-La référence naïve est un `DummyClassifier(strategy="most_frequent")` : elle apprend uniquement quelle est la classe la plus fréquente en 2024-2025 puis prédit cette classe pour toutes les lignes 2026. Ce n'est pas un modèle métier ; elle donne un niveau minimal à battre.
-
-Comparer les modèles :
+Comparer tous les modèles sur exactement le même split :
 
 ```bash
 uv run python scripts/comparer_modeles_ml.py
 ```
 
-Comparaison finale sur le même découpage **apprentissage 2024-2025 → test 2026** :
+Les valeurs finales d'accuracy et de F1 macro doivent être reprises depuis cette exécution après l'actualisation finale des données, et non depuis un ancien tableau figé.
 
-| Modèle | Accuracy | F1 macro |
-| --- | ---: | ---: |
-| Référence naïve — classe majoritaire | 42,28 % | 0,149 |
-| Régression logistique | 48,60 % | 0,381 |
-| Arbre de décision | 52,68 % | 0,404 |
-| **Random Forest** | **64,35 %** | **0,417** |
+### Empreinte carbone
 
-Le Random Forest est conservé pour le prototype : sur le même jeu de test 2026, il obtient les meilleures performances parmi les modèles comparés.
-
-Mesurer ponctuellement l'impact de l'entraînement avec CodeCarbon :
+Mesurer ponctuellement l'impact du **modèle final** avec CodeCarbon :
 
 ```bash
 uv run --group analyse python scripts/mesurer_co2_ml.py
 ```
+
+Cette mesure est à refaire après le dernier entraînement, car une mesure obtenue avec une version antérieure du jeu de données ou du modèle ne décrit pas l'empreinte de la version finale.
 
 ## Tests
 
