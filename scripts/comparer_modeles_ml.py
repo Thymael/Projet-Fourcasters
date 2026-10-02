@@ -57,7 +57,10 @@ def main() -> None:
 
     print()
     print("COMPARAISON DES MODÈLES")
-    print("Apprentissage : cibles 2024-2025 | Test : cibles 2026")
+    print("Apprentissage : cibles 2024-2025 | Test : cibles 2026 jusqu’au 02/10")
+    print(f"Train : {len(x_train):,} lignes | {dates_prevision.loc[train].min().date()} -> {dates_prevision.loc[train].max().date()}")
+    print(f"Test  : {len(x_test):,} lignes | {dates_prevision.loc[test].min().date()} -> {dates_prevision.loc[test].max().date()}")
+    print(f"Référence naïve : classe N{int(y_train.mode().iloc[0])}, apprise sur le train 2024-2025")
     print("=" * 65)
 
     for nom, modele in modeles.items():
