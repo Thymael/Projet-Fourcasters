@@ -264,7 +264,7 @@ def charger_pipeline_historique():
     if version != VERSION_FEATURES:
         raise ValueError(
             "Le pipeline.pkl ne correspond pas au split actuel "
-            "2024-2025 → 2026 ou à la fenêtre météo D-6 à D. "
+            "2024-2025 → test 2026 arrêté au 02/10 ou à la fenêtre météo J-6 à J. "
             "Relance scripts/entrainer_ml_incendie.py après dbt build."
         )
     return modele
@@ -508,7 +508,7 @@ with tab_historique:
     )
     st.markdown(
         '<div class="section-subtitle">'
-        "Choisir une date prévue en 2026, un département et l'échéance, "
+        "Choisir une date prévue en 2026 jusqu’au 2 octobre, un département et l'échéance, "
         "puis comparer la prédiction au niveau officiel Météo-France."
         "</div>",
         unsafe_allow_html=True,
@@ -675,7 +675,7 @@ with tab_resultats:
     st.markdown(
         '<div class="section-subtitle">'
         "Le Random Forest apprend uniquement sur les cibles 2024-2025. "
-        "Toutes les cibles 2026 disponibles sont réservées au test."
+        "Les cibles 2026 disponibles jusqu’au 2 octobre sont réservées au test."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -692,9 +692,9 @@ with tab_resultats:
             "les informations officielles."
         )
         st.info(
-            "Apprentissage : 2024-2025 · Test : 2026. "
-            "Fenêtre météo : les 7 derniers jours connus, de D−6 à D. "
-            "J1 cible D+1 et J2 cible D+2."
+            "Apprentissage : 2024-2025 · Test : 2026 jusqu’au 02/10. "
+            "J désigne la dernière date de référence disposant de la météo. "
+            "Fenêtre météo : J−6 à J · horizons : J+1 et J+2."
         )
 
     comparaison = construire_comparaison_test()
