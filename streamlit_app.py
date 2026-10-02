@@ -264,7 +264,7 @@ def charger_pipeline_historique():
     if version != VERSION_FEATURES:
         raise ValueError(
             "Le pipeline.pkl ne correspond pas au split actuel "
-            "2024-2025 → test 2026 arrêté au 02/10 ou à la fenêtre météo J-6 à J. "
+            "2024-2025 → test final disponible du 29/05 au 26/09/2026, projet gelé au 02/10, ou à la fenêtre météo J-6 à J. "
             "Relance scripts/entrainer_ml_incendie.py après dbt build."
         )
     return modele
@@ -692,8 +692,8 @@ with tab_resultats:
             "les informations officielles."
         )
         st.info(
-            "Apprentissage : 2024-2025 · Test : 2026 jusqu’au 02/10. "
-            "J désigne la dernière date de référence disposant de la météo. "
+            "Apprentissage : 2024-2025 · Test final : 29/05 → 26/09/2026. "
+            "Le projet est gelé au 02/10 ; J désigne la dernière date de référence disposant de la météo. "
             "Fenêtre météo : J−6 à J · horizons : J+1 et J+2."
         )
 
