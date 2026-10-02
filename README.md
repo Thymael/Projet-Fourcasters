@@ -190,9 +190,9 @@ La cible est le **niveau de danger incendie Météo-France (Météo des forêts)
 
 Le découpage final est temporel :
 - les cibles **2024 et 2025** servent à l'apprentissage ;
-- les cibles **2026 jusqu'au 2 octobre inclus** servent au test ;
+- le test est réservé aux cibles **2026**, avec un plafond fixé au **2 octobre 2026** ;
 - aucune cible 2026 n'est utilisée pendant l'apprentissage ;
-- toute cible postérieure au **02/10/2026** est exclue du split final.
+- lors du gel final du projet le **02/10/2026**, le retard de disponibilité météo de 6 jours conduit à une période de test réellement disponible du **29/05/2026 au 26/09/2026**.
 
 ### Repère temporel
 
@@ -215,7 +215,18 @@ uv run python scripts/entrainer_ml_incendie.py
 
 Le script crée `pipeline.pkl` à la racine du projet et affiche les effectifs exacts, les périodes, l'accuracy, la référence naïve, le F1 macro, le rapport par classe et la matrice de confusion.
 
-Le support de soutenance donne comme ordre de grandeur final **≈ 71 000 observations exploitables avant séparation**, dont **≈ 46 500** pour l'apprentissage et **≈ 24 400** pour le test. Les nombres exacts ne sont pas figés dans cette documentation : la sortie du dernier entraînement réalisé après le `dbt build` du 2 octobre constitue la référence finale.
+Résultats du dernier entraînement réalisé sur la version gelée du projet :
+
+| Mesure finale | Valeur |
+| --- | ---: |
+| Lignes d'apprentissage | **46 080** |
+| Lignes de test | **21 696** |
+| Total train + test | **67 776** |
+| Période de test | **29/05/2026 → 26/09/2026** |
+| Accuracy Random Forest | **64,39 %** |
+| F1 macro Random Forest | **0,417** |
+
+Ces valeurs constituent la référence finale du projet. Le plafond métier reste fixé au 2 octobre, mais la dernière cible testable dans le run final est le 26 septembre à cause du décalage de disponibilité des données météo.
 
 La référence naïve utilise `DummyClassifier(strategy="most_frequent")` : la classe majoritaire est **apprise uniquement sur le jeu d'entraînement 2024-2025**, puis appliquée au test 2026. Elle ne doit pas être décrite comme la classe majoritaire du jeu de test.
 
@@ -225,7 +236,7 @@ Comparer tous les modèles sur exactement le même split :
 uv run python scripts/comparer_modeles_ml.py
 ```
 
-Les valeurs finales d'accuracy et de F1 macro doivent être reprises depuis cette exécution après l'actualisation finale des données, et non depuis un ancien tableau figé.
+Les autres modèles et la référence naïve doivent être comparés sur exactement le même split final. Le Random Forest final obtient **64,39 % d'accuracy** et **0,417 de F1 macro**.
 
 ### Empreinte carbone
 
@@ -235,7 +246,7 @@ Mesurer ponctuellement l'impact du **modèle final** avec CodeCarbon :
 uv run --group analyse python scripts/mesurer_co2_ml.py
 ```
 
-Cette mesure est à refaire après le dernier entraînement, car une mesure obtenue avec une version antérieure du jeu de données ou du modèle ne décrit pas l'empreinte de la version finale.
+La mesure CodeCarbon du dernier entraînement est de **0,000003 kg CO2e**, soit **0,003 g CO2e**. Cette valeur est associée à la version finale du modèle et du dataset.
 
 ## Tests
 
