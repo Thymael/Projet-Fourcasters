@@ -1,6 +1,6 @@
-/* Variables météo disponibles jusqu'au jour de publication.
-   Pour une publication D, la fenêtre de 7 jours couvre D-6 à D.
-   J1 et J2 utilisent la même fenêtre ; horizon_jours distingue les deux cibles. */
+/* Variables météo disponibles jusqu’à la date de référence J.
+   La fenêtre de 7 jours couvre J-6 à J inclus.
+   Les horizons J+1 et J+2 utilisent la même fenêtre ; horizon_jours les distingue. */
 WITH meteo_avec_rolling AS (
     SELECT
         date,
