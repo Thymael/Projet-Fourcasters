@@ -20,7 +20,7 @@ La cible du modèle est le niveau de danger publié par Météo-France. Fourcast
 
 Le modèle est désormais entraîné uniquement sur les cibles Météo-France de **2024 et 2025** puis évalué sur les cibles **2026** disponibles. Cette séparation annuelle évite d'utiliser une partie de 2026 pendant l'apprentissage.
 
-L'évaluation finale est réalisée sur **21 504 observations** de 2026 jusqu'au **2 octobre inclus**. Le Random Forest atteint **64,35 % d'accuracy** et **0,417 de F1 macro**. La référence naïve atteint **42,28 % d'accuracy** et apprend sa classe majoritaire uniquement sur l'apprentissage 2024-2025.
+L'évaluation finale est réalisée sur **21 696 observations** de 2026, avec des dates prévues du 29 mai au 26 septembre. Le Random Forest atteint **64,39 % d'accuracy** et **0,417 de F1 macro**. La référence naïve atteint **42,18 % d'accuracy** ; elle apprend sur l'entraînement 2024-2025 que le niveau 1 est la classe la plus fréquente.
 
 Les niveaux 1 et 2 sont les mieux reconnus. Le niveau 3 reste difficile avec un rappel de **20 %**. Le niveau 4 compte seulement **141 observations** dans le test et n'est pas correctement reconnu par le modèle (rappel **0 %**).
 

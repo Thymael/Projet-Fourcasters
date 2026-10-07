@@ -17,9 +17,167 @@ from fourcasters_dbt.ml_incendie import (
 
 
 st.set_page_config(
-    page_title="Fourcasters - danger incendie",
-    page_icon=":material/local_fire_department:",
+    page_title="Fourcasters | Météo & danger incendie",
+    page_icon="🔥",
     layout="wide",
+)
+
+st.markdown(
+    """
+    <style>
+        :root {
+            --fc-sky: #99d8ff;
+            --fc-green: #72d6a0;
+            --fc-fire: #ff9f43;
+            --fc-muted: #a9b6c7;
+        }
+
+        .stApp {
+            background:
+                radial-gradient(circle at 10% 0%, rgba(64,153,255,.18), transparent 30%),
+                radial-gradient(circle at 92% 4%, rgba(255,111,42,.16), transparent 28%),
+                linear-gradient(155deg, #07121d 0%, #0b1b27 48%, #161916 100%);
+        }
+
+        .block-container {
+            max-width: 1220px;
+            padding-top: 1.7rem;
+            padding-bottom: 3.5rem;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            padding: 1.8rem 2rem;
+            border: 1px solid rgba(255,255,255,.10);
+            border-radius: 24px;
+            background: linear-gradient(
+                120deg,
+                rgba(27,89,135,.44),
+                rgba(28,62,54,.36) 52%,
+                rgba(126,55,24,.36)
+            );
+            box-shadow: 0 18px 45px rgba(0,0,0,.18);
+            margin-bottom: 1.2rem;
+        }
+
+        .hero::after {
+            content: "☁️  ☀️  🌲  🔥";
+            position: absolute;
+            right: 1.6rem;
+            top: 1.3rem;
+            font-size: 2rem;
+            letter-spacing: .35rem;
+            opacity: .18;
+        }
+
+        .hero-kicker {
+            color: var(--fc-sky);
+            text-transform: uppercase;
+            letter-spacing: .14em;
+            font-size: .76rem;
+            font-weight: 700;
+        }
+
+        .hero h1 {
+            margin: .25rem 0 .4rem 0;
+            font-size: 2.45rem;
+            line-height: 1.05;
+        }
+
+        .hero p {
+            max-width: 820px;
+            margin: 0;
+            color: #d9e4ef;
+            line-height: 1.55;
+        }
+
+        .hero-tags {
+            display: flex;
+            gap: .55rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+
+        .hero-tag {
+            padding: .34rem .65rem;
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 999px;
+            background: rgba(255,255,255,.05);
+            color: #dce8f4;
+            font-size: .78rem;
+        }
+
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            border-color: rgba(255,255,255,.09);
+            border-radius: 18px;
+            background: rgba(255,255,255,.018);
+        }
+
+        div[data-testid="stMetric"] {
+            padding: .85rem 1rem;
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 15px;
+            background: rgba(255,255,255,.025);
+        }
+
+        div[data-testid="stMetricLabel"] { color: var(--fc-muted); }
+        div[data-testid="stTabs"] button { font-weight: 700; }
+
+        .result-card {
+            min-height: 165px;
+            padding: 1.15rem 1.2rem;
+            border: 1px solid rgba(255,255,255,.09);
+            border-radius: 18px;
+            background: linear-gradient(
+                145deg,
+                rgba(255,255,255,.055),
+                rgba(255,255,255,.018)
+            );
+            box-shadow: 0 12px 28px rgba(0,0,0,.12);
+        }
+
+        .result-card.level-1 { border-top: 4px solid #49b96e; }
+        .result-card.level-2 { border-top: 4px solid #e5c84b; }
+        .result-card.level-3 { border-top: 4px solid #ef933d; }
+        .result-card.level-4 { border-top: 4px solid #e34f4f; }
+
+        .result-horizon {
+            color: var(--fc-muted);
+            font-size: .82rem;
+            margin-bottom: .6rem;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+        }
+
+        .result-level {
+            font-size: 1.75rem;
+            line-height: 1.05;
+            font-weight: 850;
+        }
+
+        .result-name {
+            margin-top: .35rem;
+            font-size: 1rem;
+            font-weight: 650;
+        }
+
+        .result-confidence {
+            margin-top: .8rem;
+            color: var(--fc-muted);
+            font-size: .86rem;
+        }
+
+        .footer-note {
+            margin-top: 2.3rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255,255,255,.08);
+            color: #8fa0b4;
+            font-size: .82rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 NOMS_NIVEAUX = {
@@ -107,14 +265,26 @@ def options_departements(donnees: pd.DataFrame) -> dict[str, str]:
     }
 
 
-st.title("Fourcasters", icon=":material/forest:")
 st.markdown(
-    "Estimer le niveau de danger Météo-France à **J+1** et **J+2** à partir "
-    "de la dernière journée météo complète disponible."
-)
-st.caption(
-    "Prototype étudiant. Le modèle reproduit un niveau officiel de danger. "
-    "Il ne prévoit ni les départs de feu ni l'évolution de la météo."
+    """
+    <div class="hero">
+        <div class="hero-kicker">Fourcasters · météo & danger incendie</div>
+        <h1>Du ciel au danger incendie</h1>
+        <p>
+            Estimer le niveau de danger Météo-France à J+1 et J+2 depuis la
+            dernière journée météo complète disponible. Le modèle reproduit
+            un niveau officiel : il ne prédit ni les départs de feu ni
+            l'évolution future de la météo.
+        </p>
+        <div class="hero-tags">
+            <span class="hero-tag">🌦️ Open-Meteo</span>
+            <span class="hero-tag">🔥 Météo-France</span>
+            <span class="hero-tag">📍 96 départements</span>
+            <span class="hero-tag">🤖 Random Forest</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 if not FICHIER_PIPELINE.exists():
@@ -184,15 +354,24 @@ with tab_predictions:
 
     colonnes = st.columns(2, gap="large")
     for colonne, ligne in zip(colonnes, selection.itertuples(), strict=True):
-        with colonne.container(border=True, height="stretch"):
-            st.subheader(
-                f"{ligne.echeance} - {ligne.date_prevision:%d/%m/%Y}",
-                icon=":material/calendar_today:",
-            )
-            st.metric("Niveau estimé", libelle_niveau(ligne.niveau_predit))
-            st.caption(
-                f"Probabilité la plus élevée du modèle : {ligne.confiance:.0%}. "
-                "Cette valeur reste indicative."
+        with colonne:
+            st.markdown(
+                f"""
+                <div class="result-card level-{ligne.niveau_predit}">
+                    <div class="result-horizon">
+                        {ligne.echeance} · {ligne.date_prevision:%d/%m/%Y}
+                    </div>
+                    <div class="result-level">Niveau {ligne.niveau_predit}</div>
+                    <div class="result-name">
+                        {NOMS_NIVEAUX.get(ligne.niveau_predit, "Inconnu")}
+                    </div>
+                    <div class="result-confidence">
+                        Probabilité la plus élevée : {ligne.confiance:.0%}<br>
+                        Valeur indicative, à comparer aux informations officielles.
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
     with st.expander("Météo utilisée", icon=":material/cloud:"):
@@ -306,3 +485,14 @@ with tab_methode:
         "Les niveaux officiels publiés par Météo-France restent la référence.",
         icon=":material/verified:",
     )
+
+st.markdown(
+    """
+    <div class="footer-note">
+        Fourcasters est un prototype étudiant. Il aide à explorer les données
+        et le comportement du modèle, sans remplacer les informations
+        officielles de Météo-France.
+    </div>
+    """,
+    unsafe_allow_html=True,
+)

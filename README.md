@@ -182,7 +182,6 @@ Power BI sert à analyser la météo et les niveaux de danger. Il utilise princi
 Le Machine Learning n'est pas exécuté dans Power BI.
 
 La documentation utilisateur est disponible dans [DOCUMENTATION/GUIDE_POWER_BI.md](DOCUMENTATION/GUIDE_POWER_BI.md).
-Le support final se trouve dans `DOCUMENTATION/Fourcasters_Soutenance_15min.pptx`.
 
 ## Machine Learning
 
@@ -221,12 +220,12 @@ uv run python scripts/entrainer_ml_incendie.py
 
 Le script crée `pipeline.pkl` à la racine du projet et affiche les effectifs exacts, les périodes, l'accuracy, la référence naïve, le F1 macro, le rapport par classe et la matrice de confusion.
 
-Le jeu final contient **67 584 observations** :
+Le jeu final contient **67 776 observations** :
 
 - **46 080** lignes pour l'apprentissage 2024-2025 ;
-- **21 504** lignes pour le test 2026 jusqu'au 2 octobre inclus.
+- **21 696** lignes pour le test 2026. Les dates prévues vont du 29 mai au 26 septembre 2026 ; la règle de séparation accepte les cibles jusqu'au 2 octobre inclus.
 
-Sur ce test, le Random Forest atteint **64,35 % d'accuracy** et **0,417 de F1 macro**. La référence naïve atteint **42,28 % d'accuracy**. Ces résultats décrivent un prototype pédagogique : les niveaux 3 et 4 restent nettement moins bien reconnus.
+Sur ce test, le Random Forest atteint **64,39 % d'accuracy** et **0,417 de F1 macro**. La référence naïve, qui prédit toujours le niveau 1 appris sur le jeu d'entraînement, atteint **42,18 % d'accuracy**. Ces résultats décrivent un prototype pédagogique : les niveaux 3 et 4 restent nettement moins bien reconnus.
 
 La référence naïve utilise `DummyClassifier(strategy="most_frequent")` : la classe majoritaire est **apprise uniquement sur le jeu d'entraînement 2024-2025**, puis appliquée au test 2026. Elle ne doit pas être décrite comme la classe majoritaire du jeu de test.
 
@@ -246,7 +245,7 @@ Mesurer ponctuellement l'impact du **modèle final** avec CodeCarbon :
 uv run --group analyse python scripts/mesurer_co2_ml.py
 ```
 
-La mesure réalisée sur le modèle final est d'environ **0,0000026 kg CO2e**, soit **0,003 g CO2e** après arrondi. Elle donne un ordre de grandeur propre à cette exécution et à cette machine.
+La mesure réalisée le 7 octobre 2026 sur le modèle final est d'environ **0,000002 kg CO2e**, soit **0,002 g CO2e** après arrondi. Elle donne un ordre de grandeur propre à cette exécution et à cette machine.
 
 ## Tests
 

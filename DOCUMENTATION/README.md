@@ -9,7 +9,6 @@ Ce dossier regroupe les documents utiles pour comprendre, utiliser et présenter
 - `GUIDE_POWER_BI.md` : contenu du rapport et ordre conseillé pour la démonstration.
 - `CONTROLES_BIGQUERY_FOURCASTERS.sql` : requêtes de contrôle manuel.
 - `Fourcasters - Modèle Open-Meteo et danger incendie Météo-France.pbix` : rapport Power BI.
-- `Fourcasters_Soutenance_15min.pptx` : présentation finale de 14 diapositives, avec notes orateur.
 
 ## Risques et responsabilité
 

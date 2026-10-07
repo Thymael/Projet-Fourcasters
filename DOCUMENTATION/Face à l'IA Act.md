@@ -4,7 +4,7 @@ Fourcasters contient un modèle de classification qui essaie de reproduire les n
 
 Le modèle est un **prototype étudiant**. Il ne prend aucune décision automatiquement et n'est pas utilisé pour attribuer un droit, un emploi, un soin ou des moyens de secours.
 
-Streamlit permet seulement de tester le modèle sur des observations de la période de test. Les niveaux officiels Météo-France restent la référence.
+Streamlit permet d'estimer J+1 et J+2 depuis la dernière météo complète disponible et de revoir un cas historique. Les niveaux officiels Météo-France restent la référence.
 
 ChatGPT a également été utilisé comme outil d'aide pendant le développement et la rédaction. Il n'est pas intégré au pipeline.
 
