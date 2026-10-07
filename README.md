@@ -126,9 +126,13 @@ Lancer Streamlit :
 uv run python -m streamlit run streamlit_app.py
 ```
 
-L'application contient deux parties :
-- **Cas historique** : comparaison ponctuelle entre la prédiction et Météo-France ;
-- **Résultats ML** : bilan du modèle sur la période de test 2026, matrice de confusion et tableau prédiction / réalité.
+L'application contient trois vues simples :
+
+- **Prédictions** : le modèle part de la dernière date météo complète disponible et calcule J+1 et J+2 ;
+- **Cas historique** : comparaison ponctuelle entre une prédiction et le niveau officiel Météo-France ;
+- **Méthode et limites** : rappel du périmètre et des précautions d'usage.
+
+Exemple de lecture : si la dernière météo complète est datée du 1er octobre, J+1 correspond au 2 octobre et J+2 au 3 octobre. L'application ne tente jamais de prédire à partir de la date civile du jour.
 
 ## Structure du projet
 
@@ -141,8 +145,9 @@ Projet_Fourcasters/
 ├── scripts/                  # scripts à lancer
 ├── src/fourcasters_dbt/      # fonctions Python
 ├── tests/                    # tests Python
-├── pipeline.pkl              # modèle ML historique
-├── streamlit_app.py          # démonstration et résultats du modèle
+├── pipeline.pkl              # modèle ML entraîné
+├── streamlit_app.py          # prédictions J+1/J+2 et cas historique
+├── SOUTENANCE.md             # déroulé oral de 15 minutes et checklist
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
@@ -177,6 +182,7 @@ Power BI sert à analyser la météo et les niveaux de danger. Il utilise princi
 Le Machine Learning n'est pas exécuté dans Power BI.
 
 La documentation utilisateur est disponible dans [DOCUMENTATION/GUIDE_POWER_BI.md](DOCUMENTATION/GUIDE_POWER_BI.md).
+Le support final se trouve dans `DOCUMENTATION/Fourcasters_Soutenance_15min.pptx`.
 
 ## Machine Learning
 
@@ -190,9 +196,9 @@ La cible est le **niveau de danger incendie Météo-France (Météo des forêts)
 
 Le découpage final est temporel :
 - les cibles **2024 et 2025** servent à l'apprentissage ;
-- le test est réservé aux cibles **2026**, avec un plafond fixé au **2 octobre 2026** ;
+- les cibles **2026 jusqu'au 2 octobre inclus** servent au test ;
 - aucune cible 2026 n'est utilisée pendant l'apprentissage ;
-- lors du gel final du projet le **02/10/2026**, le retard de disponibilité météo de 6 jours conduit à une période de test réellement disponible du **29/05/2026 au 26/09/2026**.
+- toute cible postérieure au **02/10/2026** est exclue du split final.
 
 ### Repère temporel
 
@@ -215,18 +221,12 @@ uv run python scripts/entrainer_ml_incendie.py
 
 Le script crée `pipeline.pkl` à la racine du projet et affiche les effectifs exacts, les périodes, l'accuracy, la référence naïve, le F1 macro, le rapport par classe et la matrice de confusion.
 
-Résultats du dernier entraînement réalisé sur la version gelée du projet :
+Le jeu final contient **67 584 observations** :
 
-| Mesure finale | Valeur |
-| --- | ---: |
-| Lignes d'apprentissage | **46 080** |
-| Lignes de test | **21 696** |
-| Total train + test | **67 776** |
-| Période de test | **29/05/2026 → 26/09/2026** |
-| Accuracy Random Forest | **64,39 %** |
-| F1 macro Random Forest | **0,417** |
+- **46 080** lignes pour l'apprentissage 2024-2025 ;
+- **21 504** lignes pour le test 2026 jusqu'au 2 octobre inclus.
 
-Ces valeurs constituent la référence finale du projet. Le plafond métier reste fixé au 2 octobre, mais la dernière cible testable dans le run final est le 26 septembre à cause du décalage de disponibilité des données météo.
+Sur ce test, le Random Forest atteint **64,35 % d'accuracy** et **0,417 de F1 macro**. La référence naïve atteint **42,28 % d'accuracy**. Ces résultats décrivent un prototype pédagogique : les niveaux 3 et 4 restent nettement moins bien reconnus.
 
 La référence naïve utilise `DummyClassifier(strategy="most_frequent")` : la classe majoritaire est **apprise uniquement sur le jeu d'entraînement 2024-2025**, puis appliquée au test 2026. Elle ne doit pas être décrite comme la classe majoritaire du jeu de test.
 
@@ -236,7 +236,7 @@ Comparer tous les modèles sur exactement le même split :
 uv run python scripts/comparer_modeles_ml.py
 ```
 
-Les autres modèles et la référence naïve doivent être comparés sur exactement le même split final. Le Random Forest final obtient **64,39 % d'accuracy** et **0,417 de F1 macro**.
+Les scripts réaffichent ces mesures après chaque nouvel entraînement afin d'éviter de conserver des chiffres provenant d'une ancienne version du jeu de données.
 
 ### Empreinte carbone
 
@@ -246,7 +246,7 @@ Mesurer ponctuellement l'impact du **modèle final** avec CodeCarbon :
 uv run --group analyse python scripts/mesurer_co2_ml.py
 ```
 
-La mesure CodeCarbon du dernier entraînement est de **0,000003 kg CO2e**, soit **0,003 g CO2e**. Cette valeur est associée à la version finale du modèle et du dataset.
+La mesure réalisée sur le modèle final est d'environ **0,0000026 kg CO2e**, soit **0,003 g CO2e** après arrondi. Elle donne un ordre de grandeur propre à cette exécution et à cette machine.
 
 ## Tests
 
@@ -270,14 +270,14 @@ uv run dbt parse --project-dir fourcasters
 
 ## Automatisation
 
-`.github/workflows/pipeline.yml` actualise chaque jour :
+`.github/workflows/pipeline.yml` exécute chaque jour :
 
 1. Open-Meteo ;
 2. Météo-France ;
 3. les tables BigQuery ;
 4. les modèles et tests dbt.
 
-Le modèle ML n'est pas réentraîné chaque jour.
+Open-Meteo récupère une seule journée manquante par exécution, avec un décalage de six jours. La collecte Météo-France s'arrête après la fin de la saison 2026, fixée au 2 octobre dans le projet. Le modèle ML n'est pas réentraîné chaque jour.
 
 ## Documentation
 
@@ -286,11 +286,13 @@ Les principaux documents du projet sont :
 - [Schéma des données](DOCUMENTATION/SCHEMA_DONNEES.md) ;
 - [Dictionnaire de données](DOCUMENTATION/DICTIONNAIRE_DONNEES.md) ;
 - [Guide utilisateur Power BI](DOCUMENTATION/GUIDE_POWER_BI.md) ;
+- [Index de la documentation](DOCUMENTATION/README.md) ;
 - `DOCUMENTATION/CONTROLES_BIGQUERY_FOURCASTERS.sql` pour les contrôles manuels ;
 - l'audit de sobriété ;
 - la note de vigilance éthique ;
 - la réflexion sur la dépendance technologique ;
-- le point sur l'AI Act.
+- le point sur l'AI Act ;
+- la matrice courte des risques au format Excel.
 
 Les descriptions et tests des modèles sont également présents dans les fichiers YAML de dbt.
 

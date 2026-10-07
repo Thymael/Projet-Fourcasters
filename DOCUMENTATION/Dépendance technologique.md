@@ -16,6 +16,17 @@ Fourcasters utilise plusieurs services extérieurs : Google Cloud, GitHub, Open-
 
 ChatGPT a été utilisé comme aide pendant le développement. Il n'est pas intégré au fonctionnement du projet.
 
+## Conséquences et solutions de repli
+
+| Dépendance | Conséquence principale | Solution de repli |
+| --- | --- | --- |
+| Google Cloud | Le stockage et les transformations deviennent indisponibles. | Conserver les Parquet et relancer les traitements dans une autre infrastructure. |
+| Open-Meteo | La météo ne peut plus être actualisée. | Garder l'historique déjà collecté et adapter le connecteur à une autre source. |
+| Météo-France | Les niveaux officiels ne peuvent plus être mis à jour. | Conserver les publications déjà chargées et suspendre la comparaison. |
+| GitHub Actions | L'actualisation automatique s'arrête. | Lancer les mêmes commandes en local. |
+| Power BI | Le rapport n'est plus consultable. | Interroger les tables BigQuery ou produire une autre restitution. |
+| Streamlit | La démonstration ML n'est plus accessible. | Charger `pipeline.pkl` dans un script Python. |
+
 ## Comment limiter cette dépendance ?
 
 Deux choix simples permettent de garder le projet transportable :

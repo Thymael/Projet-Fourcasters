@@ -22,6 +22,8 @@ from fourcasters_dbt.configuration import (
 logger = logging.getLogger(__name__)
 
 TABLE_ML = f"{PROJET_GCP}.{DATASET_ANALYSE}.ml_train_incendie"
+TABLE_FEATURES_ML = f"{PROJET_GCP}.{DATASET_ANALYSE}.ml_features_incendie"
+TABLE_DEPARTEMENTS = f"{PROJET_GCP}.{DATASET_ANALYSE}.dim_departement"
 FICHIER_PIPELINE = RACINE_PROJET / "pipeline.pkl"
 COLONNE_CIBLE = "cible_niveau_danger"
 VERSION_FEATURES = "meteo_J-6_a_J_train_2024_2025_test_2026_fin_2026-10-02_v4"
@@ -55,6 +57,10 @@ COLONNES_MODELE = [
     "jours_sans_pluie_7j",
 ]
 
+COLONNES_METEO_MODELE = [
+    colonne for colonne in COLONNES_MODELE if colonne != "horizon_jours"
+]
+
 
 def charger_donnees() -> pd.DataFrame:
     """Charge le jeu d'apprentissage préparé par dbt."""
@@ -68,6 +74,86 @@ def charger_donnees() -> pd.DataFrame:
         ORDER BY date_prevision, numero_departement, echeance
     """
     return client.query(requete).to_dataframe(create_bqstorage_client=False)
+
+
+def charger_derniere_meteo_complete() -> pd.DataFrame:
+    """Charge la date météo la plus récente complète pour tous les départements."""
+    configurer_google_cloud()
+    client = bigquery.Client(project=PROJET_GCP)
+    colonnes = ", ".join(
+        [
+            "meteo_date",
+            "numero_departement",
+            "departement",
+            "region",
+            *COLONNES_METEO_MODELE,
+        ]
+    )
+    requete = f"""
+        WITH dates_completes AS (
+            SELECT meteo_date
+            FROM `{TABLE_FEATURES_ML}`
+            WHERE meteo_disponible = TRUE
+            GROUP BY meteo_date
+            HAVING COUNT(DISTINCT numero_departement) = (
+                SELECT COUNT(*) FROM `{TABLE_DEPARTEMENTS}`
+            )
+            ORDER BY meteo_date DESC
+            LIMIT 1
+        )
+
+        SELECT {colonnes}
+        FROM `{TABLE_FEATURES_ML}`
+        INNER JOIN dates_completes USING (meteo_date)
+        WHERE meteo_disponible = TRUE
+        ORDER BY numero_departement
+    """
+    return client.query(requete).to_dataframe(create_bqstorage_client=False)
+
+
+def preparer_predictions_derniere_meteo(
+    donnees: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Prépare deux horizons à partir du dernier jour météo disponible."""
+    colonnes_requises = [
+        "meteo_date",
+        "numero_departement",
+        "departement",
+        "region",
+        *COLONNES_METEO_MODELE,
+    ]
+    manquantes = [
+        colonne for colonne in colonnes_requises if colonne not in donnees.columns
+    ]
+    if manquantes:
+        raise ValueError(f"Colonnes manquantes : {manquantes}")
+    if donnees.empty:
+        raise ValueError("Aucune donnée météo disponible pour la prédiction.")
+
+    base = donnees[colonnes_requises].copy().reset_index(drop=True)
+    base["meteo_date"] = pd.to_datetime(
+        base["meteo_date"], errors="raise"
+    ).dt.normalize()
+    if base["meteo_date"].nunique() != 1:
+        raise ValueError("Une seule date météo de référence est attendue.")
+    if base["numero_departement"].duplicated().any():
+        raise ValueError("Un département est présent plusieurs fois.")
+
+    lignes = []
+    for horizon in (1, 2):
+        horizon_df = base.copy()
+        horizon_df["horizon_jours"] = horizon
+        horizon_df["echeance"] = f"J{horizon}"
+        horizon_df["date_prevision"] = (
+            horizon_df["meteo_date"] + pd.to_timedelta(horizon, unit="D")
+        )
+        lignes.append(horizon_df)
+
+    contexte = pd.concat(lignes, ignore_index=True)
+    x = contexte[COLONNES_MODELE].apply(pd.to_numeric, errors="raise")
+    if x.isin([float("inf"), -float("inf")]).any().any():
+        raise ValueError("Une variable du modèle contient une valeur infinie.")
+    return contexte, x.astype(float)
 
 
 def preparer_donnees(donnees: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:

@@ -32,11 +32,11 @@ Le Random Forest n'est pas réentraîné automatiquement chaque jour. Il est lan
 
 La fenêtre météo finale est **J-6 à J**, avec J défini comme la date de référence disposant de la météo nécessaire. Le modèle apprend uniquement sur les cibles Météo-France de **2024 et 2025**, puis il est évalué sur les cibles **2026 jusqu'au 2 octobre inclus**.
 
-Le dernier entraînement de la version gelée utilise **46 080 lignes d'apprentissage** et **21 696 lignes de test**, soit **67 776 lignes** au total dans le split final. La période de test réellement disponible va du **29/05/2026 au 26/09/2026**. Le Random Forest obtient **64,39 % d'accuracy** et **0,417 de F1 macro**.
+Le jeu final contient **67 584 observations** : **46 080** pour l'apprentissage et **21 504** pour le test.
 
 La référence naïve est un `DummyClassifier(strategy="most_frequent")` : elle apprend la classe majoritaire uniquement sur les données d'apprentissage 2024-2025, puis applique cette règle au test 2026. Son accuracy et son F1 macro doivent être recalculés avec le même jeu de test final que le Random Forest.
 
-La mesure CodeCarbon du modèle final est de **0,000003 kg CO2e**, soit **0,003 g CO2e** pour l'entraînement mesuré. Cette valeur est conservée avec les métriques et le périmètre du run final.
+La mesure CodeCarbon du modèle final est d'environ **0,0000026 kg CO2e**, soit **0,003 g CO2e** après arrondi. Cette valeur reste un ordre de grandeur lié à une exécution locale.
 
 **Choix retenu :** garder un modèle simple, réentraîné manuellement, plutôt qu'une grosse recherche automatique de paramètres.
 

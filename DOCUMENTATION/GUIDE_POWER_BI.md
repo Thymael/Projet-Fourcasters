@@ -18,6 +18,8 @@ Le rapport suit une lecture du général au détail :
 
 Chaque page répond à une question principale et évite de multiplier les graphiques qui racontent la même chose.
 
+Le fichier livré est `Fourcasters - Modèle Open-Meteo et danger incendie Météo-France.pbix`.
+
 ## Source des données
 
 Power BI utilise les tables préparées par dbt dans BigQuery.
@@ -141,15 +143,16 @@ Le rapport utilise des contrastes élevés et évite de transmettre une informat
 
 Des textes alternatifs sont renseignés sur les principaux graphiques et filtres. Les niveaux de danger conservent également leur numéro et leur libellé en plus de leur couleur.
 
-## Captures à conserver avec le livrable
+## Démonstration pendant la soutenance
 
-Pour la version finale du projet, ajouter dans cette documentation :
+La démonstration tient en environ deux minutes :
 
-1. une capture de la Vue générale ;
-2. une capture de la page Danger incendie avec la barre de filtres ;
-3. une capture du modèle de données Power BI si celui-ci est présenté à l'oral.
-
-Une courte légende sous chaque capture suffit.
+1. ouvrir la **Vue générale** et préciser le périmètre des données ;
+2. passer à **Danger incendie** ;
+3. choisir une période et un département ;
+4. commenter un constat visible, sans parcourir tous les graphiques ;
+5. rappeler que les niveaux affichés dans Power BI sont les niveaux officiels Météo-France ;
+6. passer ensuite à Streamlit pour montrer les prédictions du modèle.
 
 ## En cas de problème
 

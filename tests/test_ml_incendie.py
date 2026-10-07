@@ -15,6 +15,7 @@ from fourcasters_dbt.ml_incendie import (
     creer_modele,
     entrainer_modele,
     preparer_donnees,
+    preparer_predictions_derniere_meteo,
     separer_dates,
 )
 
@@ -178,3 +179,49 @@ def test_entrainement_2024_2025_et_test_2026():
     assert resultats["matrice_confusion"].sum() == 16
     assert resultats["fenetre_meteo"] == "J-6 à J"
     assert modele.fourcasters_feature_version == VERSION_FEATURES
+
+
+def test_predictions_partent_du_dernier_jour_meteo():
+    donnees = pd.DataFrame(
+        {
+            "meteo_date": pd.to_datetime(["2026-10-01", "2026-10-01"]),
+            "numero_departement": ["13", "83"],
+            "departement": ["Bouches-du-Rhône", "Var"],
+            "region": ["Provence-Alpes-Côte d'Azur"] * 2,
+            **{
+                colonne: [1.0, 2.0]
+                for colonne in COLONNES_MODELE
+                if colonne != "horizon_jours"
+            },
+        }
+    )
+
+    contexte, x = preparer_predictions_derniere_meteo(donnees)
+
+    assert len(contexte) == 4
+    assert x["horizon_jours"].tolist() == [1.0, 1.0, 2.0, 2.0]
+    assert contexte.loc[contexte["echeance"] == "J1", "date_prevision"].dt.date.unique().tolist() == [
+        pd.Timestamp("2026-10-02").date()
+    ]
+    assert contexte.loc[contexte["echeance"] == "J2", "date_prevision"].dt.date.unique().tolist() == [
+        pd.Timestamp("2026-10-03").date()
+    ]
+
+
+def test_predictions_refusent_plusieurs_dates_meteo():
+    donnees = pd.DataFrame(
+        {
+            "meteo_date": pd.to_datetime(["2026-10-01", "2026-10-02"]),
+            "numero_departement": ["13", "83"],
+            "departement": ["Bouches-du-Rhône", "Var"],
+            "region": ["Provence-Alpes-Côte d'Azur"] * 2,
+            **{
+                colonne: [1.0, 2.0]
+                for colonne in COLONNES_MODELE
+                if colonne != "horizon_jours"
+            },
+        }
+    )
+
+    with pytest.raises(ValueError, match="Une seule date météo"):
+        preparer_predictions_derniere_meteo(donnees)
