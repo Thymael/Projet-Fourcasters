@@ -32,7 +32,7 @@ Le Random Forest n'est pas réentraîné automatiquement chaque jour. Il est lan
 
 La fenêtre météo finale est **J-6 à J**, avec J défini comme la date de référence disposant de la météo nécessaire. Le modèle apprend uniquement sur les cibles Météo-France de **2024 et 2025**, puis il est évalué sur les cibles **2026 jusqu'au 2 octobre inclus**.
 
-Le jeu final contient **67 776 observations** : **46 080** pour l'apprentissage et **21 696** pour le test.
+Le jeu final contient **70 464 observations** : **46 080** pour l'apprentissage et **24 288** pour le test.
 
 La référence naïve est un `DummyClassifier(strategy="most_frequent")` : elle apprend la classe majoritaire uniquement sur les données d'apprentissage 2024-2025, puis applique cette règle au test 2026. Son accuracy et son F1 macro doivent être recalculés avec le même jeu de test final que le Random Forest.
 

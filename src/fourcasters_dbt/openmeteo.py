@@ -65,6 +65,17 @@ VARIABLES_METEO = [
     "soil_temperature_0_to_7cm_mean",
 ]
 
+# Ces variables alimentent directement les agrégations et le modèle ML.
+# Une journée présente mais incomplète doit donc être recollectée.
+VARIABLES_ML_REQUISES = [
+    "temperature_2m_mean",
+    "temperature_2m_max",
+    "relative_humidity_2m_mean",
+    "precipitation_sum",
+    "wind_gusts_10m_max",
+    "vapour_pressure_deficit_max",
+]
+
 
 COLONNES_BIGQUERY = [
     "time",
@@ -98,7 +109,15 @@ def trouver_date_a_recuperer(nombre_communes: int) -> str | None:
             SELECT
                 DATE(time) AS jour,
                 COUNT(*) AS lignes,
-                COUNT(DISTINCT code_insee) AS communes
+                COUNT(DISTINCT code_insee) AS communes,
+                COUNTIF(
+                    temperature_2m_mean IS NOT NULL
+                    AND temperature_2m_max IS NOT NULL
+                    AND relative_humidity_2m_mean IS NOT NULL
+                    AND precipitation_sum IS NOT NULL
+                    AND wind_gusts_10m_max IS NOT NULL
+                    AND vapour_pressure_deficit_max IS NOT NULL
+                ) AS lignes_completes
             FROM `{TABLE_HISTORIQUE}`
             WHERE DATE(time)
                 BETWEEN '{DATE_DEBUT_ACTUALISATION}'
@@ -112,6 +131,7 @@ def trouver_date_a_recuperer(nombre_communes: int) -> str | None:
 
         WHERE COALESCE(lignes, 0) != {nombre_communes}
             OR COALESCE(communes, 0) != {nombre_communes}
+            OR COALESCE(lignes_completes, 0) != {nombre_communes}
 
         ORDER BY calendrier.jour
         LIMIT 1
@@ -205,6 +225,7 @@ def preparer_commune(
 def construire_parametres_api(
     communes: pd.DataFrame,
     date_a_recuperer: str,
+    modele: str = "era5_seamless",
 ) -> dict[str, str]:
     """Construit les paramètres Open-Meteo d'un lot de communes."""
 
@@ -219,7 +240,7 @@ def construire_parametres_api(
         "end_date": date_a_recuperer,
         "daily": ",".join(VARIABLES_METEO),
         "timezone": "Europe/Paris",
-        "models": "era5_seamless",
+        "models": modele,
     }
 
 
@@ -278,11 +299,33 @@ def recuperer_lot(
         timeout=TIMEOUT_API,
     )
 
-    return preparer_reponse_lot(
+    meteo = preparer_reponse_lot(
         reponse.json(),
         communes,
         date_a_recuperer,
     )
+
+    if meteo[VARIABLES_ML_REQUISES].isna().any().any():
+        logger.warning(
+            "ERA5-Seamless incomplet pour le %s : repli vers ERA5.",
+            date_a_recuperer,
+        )
+        reponse = recuperer_reponse(
+            URL_OPENMETEO,
+            params=construire_parametres_api(
+                communes,
+                date_a_recuperer,
+                modele="era5",
+            ),
+            timeout=TIMEOUT_API,
+        )
+        meteo = preparer_reponse_lot(
+            reponse.json(),
+            communes,
+            date_a_recuperer,
+        )
+
+    return meteo
 
 
 def collecter_communes(
@@ -431,6 +474,11 @@ def creer_parquet(
     ):
         raise ValueError(
             "Une valeur météo est infinie."
+        )
+
+    if actualisation[VARIABLES_ML_REQUISES].isna().any().any():
+        raise ValueError(
+            "Une variable météo nécessaire au ML est manquante."
         )
 
     hashes_attendus = actualisation[

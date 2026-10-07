@@ -7,6 +7,7 @@ from fourcasters_dbt.openmeteo import (
     VARIABLES_METEO,
     creer_parquet,
     preparer_reponse_lot,
+    recuperer_lot,
 )
 
 
@@ -70,6 +71,65 @@ def test_reponse_partielle_refusee():
             communes,
             "2026-09-01",
         )
+
+
+def test_variable_ml_nulle_refusee(tmp_path):
+    communes, reponse = exemple_lot()
+    reponse["daily"]["temperature_2m_mean"] = [None]
+    lot = preparer_reponse_lot(reponse, communes, "2026-09-01")
+
+    with pytest.raises(
+        ValueError,
+        match="nécessaire au ML",
+    ):
+        creer_parquet(
+            lot,
+            tmp_path / "meteo.parquet",
+            communes,
+            "2026-09-01",
+        )
+
+
+def test_repli_era5_si_seamless_incomplet(monkeypatch):
+    communes, reponse_complete = exemple_lot()
+    communes["latitude"] = 50.63
+    communes["longitude"] = 3.06
+    reponse_incomplete = {
+        "daily": {
+            **reponse_complete["daily"],
+            "precipitation_sum": [None],
+        }
+    }
+    appels = []
+
+    class Reponse:
+        def __init__(self, contenu):
+            self.contenu = contenu
+
+        def json(self):
+            return self.contenu
+
+    def faux_appel(_url, params, timeout):
+        appels.append((params["models"], timeout))
+        contenu = (
+            reponse_incomplete
+            if params["models"] == "era5_seamless"
+            else reponse_complete
+        )
+        return Reponse(contenu)
+
+    monkeypatch.setattr(
+        "fourcasters_dbt.openmeteo.recuperer_reponse",
+        faux_appel,
+    )
+
+    resultat = recuperer_lot(communes, "2026-09-01")
+
+    assert resultat["precipitation_sum"].notna().all()
+    assert [modele for modele, _ in appels] == [
+        "era5_seamless",
+        "era5",
+    ]
 
 
 def test_parquet_conserve_code_et_hash(tmp_path):
