@@ -1,5 +1,25 @@
 # Fourcasters
 
+[![Qualité du code](https://github.com/Thymael/Projet-Fourcasters/actions/workflows/quality.yml/badge.svg)](https://github.com/Thymael/Projet-Fourcasters/actions/workflows/quality.yml)
+
+Projet portfolio de Data Analyst : une chaîne de données complète qui rapproche
+la météo historique et les niveaux de danger incendie publiés par Météo-France.
+
+## Résultats clés
+
+| Élément | Résultat |
+| --- | --- |
+| Couverture météo | 360 points en France métropolitaine |
+| Danger incendie | 96 départements, échéances J1 et J2 |
+| Modèle final | Random Forest, 14 variables météo |
+| Évaluation temporelle | apprentissage 2024-2025, test 2026 |
+| Performance | 64,94 % d'accuracy, contre 43,17 % pour la référence naïve |
+| Restitution | rapport Power BI et application Streamlit |
+
+Ce projet montre la collecte par API, le stockage Cloud, la modélisation dbt,
+l'analyse exploratoire, la datavisualisation, un premier modèle de Machine
+Learning et l'automatisation avec GitHub Actions.
+
 Projet de fin de formation Data Analyst à la Wild Code School.
 
 Fourcasters rapproche des données météo historiques et les niveaux de danger de la **Météo des forêts** en France métropolitaine. Le projet couvre toute la chaîne vue pendant la formation : collecte Python, stockage dans Google Cloud et BigQuery, transformations dbt, analyse exploratoire en Python, Power BI et un premier modèle de Machine Learning présenté avec Streamlit.
@@ -147,7 +167,6 @@ Projet_Fourcasters/
 ├── tests/                    # tests Python
 ├── pipeline.pkl              # modèle ML entraîné
 ├── streamlit_app.py          # prédictions J+1/J+2 et cas historique
-├── SOUTENANCE.md             # déroulé oral de 15 minutes et checklist
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
@@ -182,6 +201,10 @@ Power BI sert à analyser la météo et les niveaux de danger. Il utilise princi
 Le Machine Learning n'est pas exécuté dans Power BI.
 
 La documentation utilisateur est disponible dans [DOCUMENTATION/GUIDE_POWER_BI.md](DOCUMENTATION/GUIDE_POWER_BI.md).
+
+Le rapport comporte cinq pages. La page « Détail département » est accessible
+par drill-through depuis les visuels qui utilisent le champ département : clic
+droit sur un département, puis **Drill-through > 05 – Détail département**.
 
 ## Machine Learning
 
@@ -266,6 +289,9 @@ Contrôle de la structure dbt :
 ```bash
 uv run dbt parse --project-dir fourcasters
 ```
+
+Le workflow `quality.yml` rejoue automatiquement les tests Python et le contrôle
+de structure dbt à chaque push et pour chaque pull request vers `main`.
 
 ## Automatisation
 

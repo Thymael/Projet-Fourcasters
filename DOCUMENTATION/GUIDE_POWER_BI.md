@@ -126,6 +126,20 @@ Pour analyser le danger incendie :
 6. comparer les territoires ;
 7. ouvrir le détail d'un département si nécessaire.
 
+### Accéder au détail d'un département
+
+Le drill-through utilise le champ `dim_departement.departement`. Depuis un
+tableau ou un graphique qui contient ce champ :
+
+1. faire un clic droit sur le département à examiner ;
+2. choisir **Drill-through** ;
+3. ouvrir **05 – Détail département** ;
+4. utiliser le bouton de retour du rapport pour revenir à la page précédente.
+
+Un filtre choisi uniquement dans un segment ne suffit pas toujours à activer
+le menu : il faut sélectionner une valeur directement dans un visuel portant
+le champ département.
+
 ## Présenter un graphique à l'oral
 
 Pour les graphiques principaux, garder toujours le même ordre :

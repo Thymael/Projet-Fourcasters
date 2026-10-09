@@ -1,0 +1,39 @@
+name: Qualité du projet
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+
+      - name: Installer les dépendances
+        run: uv sync --frozen --group dev
+
+      - name: Lancer les tests Python
+        run: uv run --no-sync pytest -q
+
+      - name: Préparer le profil dbt de contrôle
+        run: |
+          mkdir -p .ci-dbt
+          cp fourcasters/profiles.example.yml .ci-dbt/profiles.yml
+
+      - name: Vérifier la structure dbt
+        run: uv run --no-sync dbt parse --project-dir fourcasters --profiles-dir .ci-dbt
